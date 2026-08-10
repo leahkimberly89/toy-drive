@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Toy Drive — Inventory &amp; Checkout</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --ink:#1C2333; --ink-soft:#4A5568; --bg:#F2F4F3; --card:#FFFFFF; --line:#DCE1DF;
+    --brand:#B23A48; --brand-dark:#8E2C38; --brand-tint:#F6E3E4;
+    --ok:#2F8F5B; --warn:#C98A1F; --danger:#B23A48;
+    --tier-S:#C13B3B; --tier-S-tint:#F8E3E3; --tier-M:#C9971F; --tier-M-tint:#FBF0D9; --tier-L:#256D3B; --tier-L-tint:#E1EFE5;
+    --radius:14px; --shadow:0 1px 2px rgba(28,35,51,0.06), 0 4px 14px rgba(28,35,51,0.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; padding-bottom:78px; min-height:100vh;}
+  header.app-head{background:var(--ink); color:#fff; padding:16px 18px 14px; position:sticky; top:0; z-index:20; box-shadow:0 2px 10px rgba(0,0,0,0.15);}
+  header.app-head .title-row{display:flex; align-items:center; gap:10px;}
+  header.app-head .tag-icon{width:26px;height:26px;border-radius:6px 6px 6px 2px; background:var(--brand); position:relative; transform:rotate(-8deg); flex-shrink:0;}
+  header.app-head .tag-icon::after{content:""; position:absolute; top:5px; left:5px; width:6px;height:6px;border-radius:50%; background:var(--ink);}
+  header.app-head h1{font-size:17px; margin:0; font-weight:700;}
+  header.app-head .sub{font-size:12px; color:#C8CDD8; margin-top:2px;}
+  header.app-head .sync{margin-left:auto; font-size:11px; color:#C8CDD8; text-align:right; line-height:1.3; cursor:pointer;}
+  header.app-head .sync .dot{display:inline-block; width:7px;height:7px;border-radius:50%; background:var(--ok); margin-right:4px;}
+  header.app-head .sync .dot.bad{background:var(--danger);}
+  main{padding:14px; max-width:640px; margin:0 auto;}
+  nav.tabbar{position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--line); display:flex; z-index:30; padding-bottom:env(safe-area-inset-bottom);}
+  nav.tabbar button{flex:1; border:none; background:none; padding:9px 2px 8px; font-size:10.5px; color:var(--ink-soft); font-weight:600; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;}
+  nav.tabbar button .ic{font-size:19px; line-height:1;}
+  nav.tabbar button.active{color:var(--brand);}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px; box-shadow:var(--shadow);}
+  .card h2{margin:0 0 12px; font-size:15px; font-weight:700;}
+  .card h2 .muted{font-weight:500; color:var(--ink-soft); font-size:12px;}
+  label.field{display:block; margin-bottom:12px;}
+  label.field .lab{display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.4px;}
+  input[type=text], input[type=number], select, textarea{width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:16px; background:#fff; color:var(--ink); font-family:inherit;}
+  input:focus, select:focus, textarea:focus{outline:none; border-color:var(--brand);}
+  textarea{resize:vertical; min-height:50px;}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:12px 16px; border-radius:10px; border:none; font-size:15px; font-weight:700; cursor:pointer; width:100%;}
+  .btn-primary{background:var(--brand); color:#fff;}
+  .btn-primary:active{background:var(--brand-dark);}
+  .btn-secondary{background:#fff; color:var(--ink); border:1.5px solid var(--line);}
+  .btn-ghost{background:transparent; color:var(--brand); font-weight:700;}
+  .btn-sm{width:auto; padding:8px 12px; font-size:13px;}
+  .btn-row{display:flex; gap:10px;}
+  .btn:disabled{opacity:0.45; cursor:not-allowed;}
+  .grid-3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;}
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .dept-btn, .tier-btn{border:2px solid var(--line); background:#fff; border-radius:12px; padding:10px 6px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--ink); text-align:center; line-height:1.25;}
+  .dept-btn.selected{border-color:var(--brand); background:var(--brand-tint); color:var(--brand-dark);}
+  .tier-btn{font-size:14px;}
+  .tier-btn[data-tier="S"]{border-color:var(--tier-S); color:var(--tier-S);}
+  .tier-btn[data-tier="M"]{border-color:var(--tier-M); color:var(--tier-M);}
+  .tier-btn[data-tier="L"]{border-color:var(--tier-L); color:var(--tier-L);}
+  .tier-btn[data-tier="S"].selected{background:var(--tier-S-tint);}
+  .tier-btn[data-tier="M"].selected{background:var(--tier-M-tint);}
+  .tier-btn[data-tier="L"].selected{background:var(--tier-L-tint);}
+  .pill{display:inline-flex; align-items:center; font-size:11px; font-weight:800; padding:3px 9px; border-radius:100px;}
+  .pill-S{background:var(--tier-S-tint); color:var(--tier-S);}
+  .pill-M{background:var(--tier-M-tint); color:var(--tier-M);}
+  .pill-L{background:var(--tier-L-tint); color:var(--tier-L);}
+  .item-row{display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--line);}
+  .item-row:last-child{border-bottom:none;}
+  .item-row .info{flex:1; min-width:0;}
+  .item-row .desc{font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .item-row .meta{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+  .item-row .qty{font-weight:800; font-size:16px; min-width:34px; text-align:center;}
+  .item-row .qty.zero{color:var(--danger);}
+  .scan-fab{position:fixed; right:18px; bottom:92px; z-index:25; width:58px;height:58px;border-radius:50%; background:var(--brand); color:#fff; border:none; box-shadow:0 6px 18px rgba(178,58,72,0.4); font-size:24px; display:flex; align-items:center; justify-content:center; cursor:pointer;}
+  .modal-backdrop{position:fixed; inset:0; background:rgba(15,18,26,0.72); z-index:100; display:flex; align-items:flex-end; justify-content:center;}
+  .modal-backdrop.center{align-items:center; padding:16px;}
+  .modal{background:#fff; width:100%; max-width:640px; border-radius:18px 18px 0 0; padding:18px; max-height:92vh; overflow-y:auto;}
+  .modal-backdrop.center .modal{border-radius:16px;}
+  .modal .modal-head{display:flex; align-items:center; margin-bottom:14px;}
+  .modal .modal-head h3{margin:0; font-size:16px; flex:1;}
+  .modal .close-x{background:none; border:none; font-size:22px; color:var(--ink-soft); cursor:pointer; padding:4px;}
+  #scanner-video{width:100%; border-radius:12px; background:#000; max-height:52vh; object-fit:cover;}
+  #scanner-container{height:52vh; max-height:420px;}
+  #scanner-container video, #scanner-container canvas{position:absolute !important; top:0; left:0; width:100% !important; height:100% !important; object-fit:cover;}
+  .scan-mode-toggle{display:flex; gap:8px; margin:10px 0;}
+  .scan-mode-toggle button{flex:1; padding:9px; border-radius:9px; border:1.5px solid var(--line); background:#fff; font-weight:700; font-size:13px;}
+  .scan-mode-toggle button.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+  .scan-status{text-align:center; font-size:13px; color:var(--ink-soft); margin:8px 0;}
+  .banner{padding:11px 13px; border-radius:10px; font-size:13px; font-weight:600; margin-bottom:12px;}
+  .banner-info{background:#EAF1FB; color:#2A5185;}
+  .banner-warn{background:#FBEEDA; color:#8A5A11;}
+  .banner-danger{background:var(--brand-tint); color:var(--brand-dark);}
+  .banner-ok{background:#E1F1EC; color:#1E6B4B;}
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .stat-box{background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; text-align:center;}
+  .stat-box .num{font-size:24px; font-weight:800;}
+  .stat-box .lab{font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.4px; margin-top:2px;}
+  table.dept-table{width:100%; border-collapse:collapse; font-size:13px;}
+  table.dept-table th{text-align:left; color:var(--ink-soft); font-size:11px; text-transform:uppercase; padding:6px 4px; border-bottom:1.5px solid var(--line);}
+  table.dept-table td{padding:8px 4px; border-bottom:1px solid var(--line);}
+  .search-bar{margin-bottom:12px;}
+  .empty-state{text-align:center; padding:34px 14px; color:var(--ink-soft);}
+  .empty-state .big{font-size:34px; margin-bottom:8px;}
+  .label-select-row{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line);}
+  .label-select-row input[type=checkbox]{width:19px; height:19px;}
+  #print-area{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #print-area, #print-area *{visibility:visible;}
+    #print-area{display:block; position:absolute; top:0; left:0;}
+    nav.tabbar,.scan-fab{display:none !important;}
+    @page{ size:letter; margin:0.5in 0.1875in; }
+  }
+  .sticker-sheet{display:grid; grid-template-columns:repeat(3, 2.625in); grid-auto-rows:1in; column-gap:0.125in; row-gap:0;}
+  .sticker{border:1px dashed #bbb; display:flex; align-items:center; padding:0.06in 0.09in; overflow:hidden; font-family:Arial,Helvetica,sans-serif;}
+  .sticker .tier-badge{width:0.62in; height:0.62in; border-radius:50%; color:#fff; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; margin-right:0.08in;}
+  .sticker .txt{min-width:0; flex:1;}
+  .sticker .txt .dept{font-size:10.5px; font-weight:800; text-transform:uppercase;}
+  .sticker .txt .desc{font-size:8.5px; color:#333; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .sticker .txt .code{font-size:7px; color:#777; font-family:monospace; margin-top:1px;}
+  .sticker .qr{width:0.55in; height:0.55in; flex-shrink:0; margin-left:0.06in;}
+  .qr-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .setup-screen{max-width:480px; margin:60px auto; padding:0 18px;}
+  .setup-screen .card{text-align:left;}
+  .setup-screen ol{padding-left:20px; font-size:14px; line-height:1.7; color:var(--ink-soft);}
+  .status-line{font-size:12px; margin-top:8px;}
+  .status-ok{color:var(--ok);}
+  .status-bad{color:var(--danger);}
+</style>
+</head>
+<body>
+
+<div id="app-root"></div>
+<div id="modal-root"></div>
+<div id="print-area"></div>
+
+<script>
+/* =========================================================
+   API CONFIG — stored in this browser only (localStorage)
+   ========================================================= */
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzAz0ZlwSJA7t_s14tmco4PpyEKxAuYe8jkQKORTBaHMwIKvilhNXSzmFXNJFZz5O8M/exec';
+let API_URL = localStorage.getItem('toydrive_api_url') || DEFAULT_API_URL;
+let volunteerName = localStorage.getItem('toydrive_volunteer_name') || '';
+
+let state = { departments:[], tiers:[], defaultAllowance:{}, inventory:[], families:[], children:[], log:[], boxes:[] };
+let currentView = 'intake';
+
+function tierColor(code){ return {S:'var(--tier-S)',M:'var(--tier-M)',L:'var(--tier-L)'}[code] || '#888'; }
+function tierColorHex(code){ return {S:'#C13B3B',M:'#C9971F',L:'#256D3B'}[code] || '#555'; }
+function tierName(code){ const t=state.tiers.find(t=>t.code===code); return t?t.name:code; }
+function tierAbbrev(code){ const n = tierName(code); return n ? n.trim().slice(0,2) : code; }
+function deptName(code){ const d=state.departments.find(d=>d.code===code); return d?d.name:code; }
+function money(n){ return '$'+(Number(n)||0).toFixed(2); }
+function nowIso(){ return new Date().toISOString(); }
+function fmtTime(iso){ try{ return new Date(iso).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }catch(e){ return iso||''; } }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+/* =========================================================
+   API LAYER — talks to the Apps Script backend via GET
+   (GET-only avoids CORS preflight issues entirely)
+   ========================================================= */
+async function api(action, payload){
+  if(!API_URL){ throw new Error('Not connected yet.'); }
+  const url = API_URL + '?action=' + encodeURIComponent(action) + (payload ? '&payload=' + encodeURIComponent(JSON.stringify(payload)) : '');
+  const res = await fetch(url);
+  const json = await res.json();
+  if(!json.ok) throw new Error(json.error || 'Unknown error');
+  return json.data;
+}
+
+function setSync(status){
+  const el = document.getElementById('sync-indicator');
+  if(!el) return;
+  if(status==='ok') el.innerHTML = '<span class="dot"></span>Synced';
+  else if(status==='syncing') el.innerHTML = '<span class="dot"></span>Syncing…';
+  else el.innerHTML = '<span class="dot bad"></span>Sync error — tap to retry';
+}
+
+let pollTimer = null;
+async function refreshAll(silent){
+  if(!silent) setSync('syncing');
+  try{
+    const data = await api('getAll');
+    state = data;
+    setSync('ok');
+    render();
+  }catch(e){
+    console.error(e);
+    setSync('bad');
+  }
+}
+
+/* =========================================================
+   SETUP SCREEN (first run — connect to Apps Script)
+   ========================================================= */
+function renderSetupScreen(prefillError){
+  document.getElementById('app-root').innerHTML = `
+  <div class="setup-screen">
+    <div class="card">
+      <h2>Connect to your Google Sheet</h2>
+      <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">Paste the Apps Script Web App URL you deployed from your Toy Drive sheet.</p>
+      ${prefillError ? `<div class="banner banner-danger">${prefillError}</div>` : ''}
+      <label class="field"><span class="lab">Web app URL</span>
+        <input type="text" id="setup-url" placeholder="https://script.google.com/macros/s/.../exec" value="${API_URL}">
+      </label>
+      <button class="btn btn-primary" id="setup-connect">Connect</button>
+      <div class="status-line" id="setup-status"></div>
+    </div>
+    <div class="card">
+      <h2>Haven't deployed it yet?</h2>
+      <ol>
+        <li>Open your Toy Drive Google Sheet.</li>
+        <li>Extensions → Apps Script.</li>
+        <li>Paste in the Code.gs file provided, replacing any existing content.</li>
+        <li>Click Deploy → New deployment → select type "Web app".</li>
+        <li>Execute as: <b>Me</b>. Who has access: <b>Anyone</b>.</li>
+        <li>Click Deploy, authorize when prompted, then copy the URL ending in <code>/exec</code>.</li>
+        <li>Paste that URL above.</li>
+      </ol>
+    </div>
+  </div>`;
+  document.getElementById('setup-connect').addEventListener('click', async ()=>{
+    const url = document.getElementById('setup-url').value.trim();
+    const statusEl = document.getElementById('setup-status');
+    if(!url){ statusEl.textContent = 'Paste a URL first.'; statusEl.className='status-line status-bad'; return; }
+    statusEl.textContent = 'Connecting…'; statusEl.className='status-line';
+    API_URL = url;
+    try{
+      const test = await api('ping');
+      localStorage.setItem('toydrive_api_url', url);
+      statusEl.textContent = 'Connected to "'+test.sheet+'". Loading…';
+      statusEl.className='status-line status-ok';
+      setTimeout(initApp, 400);
+    }catch(e){
+      statusEl.textContent = 'Could not connect: ' + e.message;
+      statusEl.className='status-line status-bad';
+    }
+  });
+}
+
+/* =========================================================
+   MAIN APP SHELL
+   ========================================================= */
+function renderShell(){
+  document.getElementById('app-root').innerHTML = `
+  <header class="app-head">
+    <div class="title-row">
+      <div class="tag-icon"></div>
+      <div><h1>Toy Drive</h1><div class="sub">Inventory &amp; family checkout</div></div>
+      <div class="sync" id="sync-indicator"><span class="dot"></span>Synced</div>
+    </div>
+  </header>
+  <main id="main"></main>
+  <button class="scan-fab" id="global-scan-fab" title="Quick scan">▣</button>
+  <nav class="tabbar">
+    <button data-view="intake" class="active"><span class="ic">➕</span>Intake</button>
+    <button data-view="checkout"><span class="ic">🛒</span>Checkout</button>
+    <button data-view="inventory"><span class="ic">📦</span>Inventory</button>
+    <button data-view="labels"><span class="ic">🏷️</span>Labels</button>
+    <button data-view="dashboard"><span class="ic">📊</span>Dashboard</button>
+    <button data-view="settings"><span class="ic">⚙️</span>Settings</button>
+  </nav>`;
+  document.querySelectorAll('nav.tabbar button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      currentView = btn.dataset.view;
+      render();
+    });
+  });
+  document.getElementById('sync-indicator').addEventListener('click', ()=>refreshAll(false));
+  document.getElementById('global-scan-fab').addEventListener('click', ()=>{
+    if(currentView==='checkout'){ handleCheckoutScanClick(); }
+    else {
+      currentView='intake';
+      document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.view==='intake'));
+      render();
+      setTimeout(()=>openQuickAddScanner(), 60);
+    }
+  });
+}
+
+/* =========================================================
+   MODALS
+   ========================================================= */
+function openModal(html, {center=false}={}){
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `<div class="modal-backdrop ${center?'center':''}" id="active-modal-backdrop"><div class="modal">${html}</div></div>`;
+  root.querySelector('.modal-backdrop').addEventListener('click', (e)=>{ if(e.target.id==='active-modal-backdrop') closeModal(); });
+}
+function closeModal(){ document.getElementById('modal-root').innerHTML = ''; stopAllScanners(); }
+
+function ensureVolunteerName(cb){
+  if(volunteerName){ cb(); return; }
+  openModal(`
+    <div class="modal-head"><h3>Who's scanning?</h3></div>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">Just for the checkout log on this device.</p>
+    <label class="field"><span class="lab">Your name</span><input type="text" id="vol-name-input" placeholder="e.g. Sam"></label>
+    <button class="btn btn-primary" id="vol-name-save">Continue</button>
+  `, {center:true});
+  document.getElementById('vol-name-save').addEventListener('click', ()=>{
+    const v = document.getElementById('vol-name-input').value.trim();
+    volunteerName = v || 'Volunteer';
+    localStorage.setItem('toydrive_volunteer_name', volunteerName);
+    closeModal(); cb();
+  });
+}
+
+/* =========================================================
+   SCANNING (Quagga = barcodes, jsQR = QR codes)
+   Runs on a normal top-level page, so camera permission works normally.
+   We drive the camera ourselves with getUserMedia + canvas and hand
+   frames to whichever decoder is active — Quagga's own LiveStream
+   mode creates a video element that iOS Safari refuses to paint
+   (shows solid black), so we avoid that path entirely.
+   ========================================================= */
+let scanMode = 'barcode';
+let cameraStream = null, scanRAF = null, scanResultCallback = null, lastBarcodeAttempt = 0, scannerContinuous = false;
+
+function openScanner(onResult, opts={}){
+  scanResultCallback = onResult;
+  scannerContinuous = !!opts.continuous;
+  const title = opts.title || 'Scan';
+  const defaultMode = opts.defaultMode || 'qr';
+  openModal(`
+    <div class="modal-head"><h3>${title}</h3><button class="close-x" id="scan-close">&times;</button></div>
+    <div class="scan-mode-toggle">
+      <button id="mode-barcode">📦 Barcode (UPC)</button>
+      <button id="mode-qr">▣ QR code</button>
+    </div>
+    <div id="scanner-container" style="position:relative; width:100%; height:52vh; max-height:420px; background:#000; border-radius:12px; overflow:hidden;">
+      <video id="scanner-video" autoplay playsinline muted style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover;"></video>
+      <canvas id="scanner-canvas" style="display:none;"></canvas>
+      <div id="scan-flash" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; gap:4px; text-align:center; padding:16px; pointer-events:none;"></div>
+    </div>
+    <div class="scan-status" id="scan-status">Starting camera…</div>
+    <label class="field" style="margin-top:10px;"><span class="lab">Or type the code manually</span>
+      <input type="text" id="manual-code-input" placeholder="Type code, then press Enter">
+    </label>
+    <button class="btn btn-secondary" id="manual-code-submit">Use typed code</button>
+    ${scannerContinuous ? `<button class="btn btn-primary" id="scan-done-btn" style="margin-top:10px;">Done scanning</button>` : ``}
+  `);
+  document.getElementById('scan-close').addEventListener('click', closeModal);
+  document.getElementById('mode-barcode').addEventListener('click', ()=>switchScanMode('barcode'));
+  document.getElementById('mode-qr').addEventListener('click', ()=>switchScanMode('qr'));
+  document.getElementById('manual-code-submit').addEventListener('click', submitManualCode);
+  document.getElementById('manual-code-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitManualCode(); });
+  const doneBtn = document.getElementById('scan-done-btn');
+  if(doneBtn) doneBtn.addEventListener('click', closeModal);
+  scanMode = defaultMode;
+  document.getElementById('mode-barcode').classList.toggle('active', scanMode==='barcode');
+  document.getElementById('mode-qr').classList.toggle('active', scanMode==='qr');
+  if(scanMode==='barcode') startBarcodeScanner(); else startQrScanner();
+}
+function submitManualCode(){
+  const v = document.getElementById('manual-code-input').value.trim();
+  if(!v) return;
+  if(scannerContinuous){
+    document.getElementById('manual-code-input').value = '';
+    if(scanResultCallback) scanResultCallback(v, 'manual');
+  } else {
+    const cb = scanResultCallback; closeModal(); if(cb) cb(v, 'manual');
+  }
+}
+function switchScanMode(mode){
+  if(mode===scanMode) return;
+  stopAllScanners(); scanMode = mode;
+  document.getElementById('mode-barcode').classList.toggle('active', mode==='barcode');
+  document.getElementById('mode-qr').classList.toggle('active', mode==='qr');
+  if(mode==='barcode') startBarcodeScanner(); else startQrScanner();
+}
+function stopAllScanners(){
+  if(scanRAF) cancelAnimationFrame(scanRAF); scanRAF = null;
+  if(cameraStream){ cameraStream.getTracks().forEach(t=>t.stop()); cameraStream = null; }
+}
+function startCamera(onFrame){
+  const video = document.getElementById('scanner-video');
+  const canvas = document.getElementById('scanner-canvas');
+  const ctx = canvas.getContext('2d', {willReadFrequently:true});
+  const statusEl = document.getElementById('scan-status');
+  navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:640}, height:{ideal:480} } })
+    .then(stream=>{
+      cameraStream = stream;
+      video.srcObject = stream;
+      video.muted = true;
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('muted', 'true');
+      const playPromise = video.play();
+      if(playPromise && playPromise.catch) playPromise.catch(()=>{});
+      const tick = ()=>{
+        if(video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth){
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          onFrame(canvas, ctx);
+        }
+        scanRAF = requestAnimationFrame(tick);
+      };
+      scanRAF = requestAnimationFrame(tick);
+    })
+    .catch(e=>{ console.error(e); if(statusEl) statusEl.textContent = 'Camera permission denied — type the code below.'; });
+}
+function startBarcodeScanner(){
+  const statusEl = document.getElementById('scan-status');
+  if(typeof Quagga === 'undefined'){ if(statusEl) statusEl.textContent = 'Barcode scanner failed to load — type the code below.'; return; }
+  if(statusEl) statusEl.textContent = 'Point the camera at the barcode…';
+  startCamera((canvas)=>{
+    const now = Date.now();
+    if(now - lastBarcodeAttempt < 300) return;
+    lastBarcodeAttempt = now;
+    try{
+      Quagga.decodeSingle({
+        src: canvas.toDataURL('image/jpeg', 0.75),
+        numOfWorkers: 0,
+        inputStream: { size: canvas.width },
+        decoder: { readers:['upc_reader','upc_e_reader','ean_reader','ean_8_reader','code_128_reader'] },
+        locate: true
+      }, function(result){
+        if(result && result.codeResult && result.codeResult.code){
+          const code = result.codeResult.code;
+          beep(); vibrate();
+          if(scannerContinuous){ if(scanResultCallback) scanResultCallback(code, 'barcode'); }
+          else { const cb = scanResultCallback; closeModal(); if(cb) cb(code, 'barcode'); }
+        }
+      });
+    }catch(e){ console.error(e); }
+  });
+}
+function startQrScanner(){
+  const statusEl = document.getElementById('scan-status');
+  if(typeof jsQR === 'undefined'){ if(statusEl) statusEl.textContent = 'QR scanner failed to load — type the code below.'; return; }
+  if(statusEl) statusEl.textContent = 'Point the camera at the QR code…';
+  startCamera((canvas, ctx)=>{
+    const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const result = jsQR(imgData.data, imgData.width, imgData.height);
+    if(result && result.data){
+      beep(); vibrate();
+      if(scannerContinuous){ if(scanResultCallback) scanResultCallback(result.data, 'qr'); }
+      else { const cb = scanResultCallback; closeModal(); if(cb) cb(result.data, 'qr'); }
+    }
+  });
+}
+
+function beep(){ try{ const ctxA = new (window.AudioContext||window.webkitAudioContext)(); const o=ctxA.createOscillator(),g=ctxA.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(ctxA.destination); g.gain.setValueAtTime(0.15, ctxA.currentTime); o.start(); o.stop(ctxA.currentTime+0.09); }catch(e){} }
+function vibrate(){ try{ navigator.vibrate && navigator.vibrate(60); }catch(e){} }
+
+let scanFlashTimer = null;
+function showScanFlash(mainText, subText, type){
+  const el = document.getElementById('scan-flash');
+  if(!el) return;
+  const colors = {
+    ok: 'rgba(47,143,91,0.92)',
+    warn: 'rgba(201,138,31,0.92)',
+    error: 'rgba(178,58,72,0.92)'
+  };
+  el.style.background = colors[type] || colors.ok;
+  el.innerHTML = `<div style="font-size:34px; font-weight:800; color:#fff; line-height:1.1;">${mainText}</div>${subText ? `<div style="font-size:15px; font-weight:600; color:#fff; opacity:0.95;">${subText}</div>` : ''}`;
+  el.style.display = 'flex';
+  if(scanFlashTimer) clearTimeout(scanFlashTimer);
+  scanFlashTimer = setTimeout(()=>{ el.style.display = 'none'; }, 1100);
+}
+
+function parseCategoryCode(raw){
+  const code = String(raw||'').trim().toUpperCase();
+  for(const d of state.departments){
+    const prefix = d.code.toUpperCase() + '-';
+    if(code.startsWith(prefix)){
+      const tierPart = code.slice(prefix.length);
+      const tier = state.tiers.find(t=>t.code.toUpperCase()===tierPart.toUpperCase());
+      if(tier) return { dept: d.code, tier: tier.code };
+    }
+  }
+  return null;
+}
+
+/* =========================================================
+   RENDER ROUTER
+   ========================================================= */
+function render(){
+  const main = document.getElementById('main');
+  if(!main) return;
+  if(currentView==='intake') main.innerHTML = renderIntake();
+  else if(currentView==='checkout') main.innerHTML = renderCheckout();
+  else if(currentView==='inventory') main.innerHTML = renderInventory();
+  else if(currentView==='labels') main.innerHTML = renderLabels();
+  else if(currentView==='dashboard') main.innerHTML = renderDashboard();
+  else if(currentView==='settings') main.innerHTML = renderSettings();
+  attachViewHandlers();
+}
+
+/* =========================================================
+   INTAKE
+   ========================================================= */
+let intakeDraft = { dept:null, tier:null, code:'', hasUPC:true, description:'', unitValue:'', qty:1, location:'' };
+let showDetailedIntake = false;
+function renderIntake(){
+  const depts = state.departments, tiers = state.tiers;
+  return `
+  <div class="card">
+    <h2>Add toys</h2>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">Put the size/department sticker on the toy first, then scan that same sticker here — each scan adds one to that category's count.</p>
+    <button class="btn btn-primary" id="quick-add-scan-btn">▣ Scan a toy sticker</button>
+    <div style="font-size:12px;color:var(--ink-soft);margin-top:10px;">Haven't printed stickers yet? Go to the <b>Labels</b> tab first.</div>
+  </div>
+  <div class="card">
+    <button class="btn btn-ghost" id="toggle-detailed-intake" style="width:auto;padding:0;">${showDetailedIntake?'Hide':'+ Add one item with full details'}</button>
+    ${showDetailedIntake ? `
+    <div style="margin-top:14px;">
+      <h4 class="section-lab" style="margin-top:0;">1. Department</h4>
+      <div class="grid-3">${depts.map(d=>`<button class="dept-btn ${intakeDraft.dept===d.code?'selected':''}" data-dept="${d.code}">${d.name}</button>`).join('')}</div>
+      <h4 class="section-lab">2. Size / value tier</h4>
+      <div class="grid-3">${tiers.map(t=>`<button class="tier-btn ${intakeDraft.tier===t.code?'selected':''}" data-tier="${t.code}">${t.name}<br><span style="font-weight:500;font-size:11px;">${t.max?money(t.min)+'–'+money(t.max):money(t.min)+'+'}</span></button>`).join('')}</div>
+      <h4 class="section-lab">3. Toy details</h4>
+      <label class="field"><span class="lab">Barcode / UPC</span>
+        <div class="btn-row"><input type="text" id="intake-code" placeholder="Scan or type…" value="${intakeDraft.code}"><button class="btn btn-secondary btn-sm" id="intake-scan-btn">▣ Scan</button></div>
+      </label>
+      <label class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="intake-no-upc" style="width:18px;height:18px;" ${intakeDraft.hasUPC?'':'checked'}>
+        <span style="font-size:13px;">No UPC on this toy (generate an internal code)</span>
+      </label>
+      <label class="field"><span class="lab">Description</span><input type="text" id="intake-desc" placeholder="e.g. Lego dump truck" value="${intakeDraft.description}"></label>
+      <div class="grid-2">
+        <label class="field"><span class="lab">Unit value ($)</span><input type="number" step="0.01" id="intake-value" value="${intakeDraft.unitValue}"></label>
+        <label class="field"><span class="lab">Quantity</span><input type="number" min="1" id="intake-qty" value="${intakeDraft.qty}"></label>
+      </div>
+      <label class="field"><span class="lab">Box / location (optional)</span><input type="text" id="intake-loc" placeholder="e.g. B6-9 Box 01" value="${intakeDraft.location}"></label>
+      <button class="btn btn-primary" id="intake-save-btn">Add to inventory</button>
+    </div>` : ``}
+  </div>`;
+}
+function attachIntakeHandlers(){
+  const quickBtn = document.getElementById('quick-add-scan-btn');
+  if(quickBtn) quickBtn.addEventListener('click', openQuickAddScanner);
+  const toggleBtn = document.getElementById('toggle-detailed-intake');
+  if(toggleBtn) toggleBtn.addEventListener('click', ()=>{ showDetailedIntake = !showDetailedIntake; render(); });
+  document.querySelectorAll('.dept-btn').forEach(b=>b.addEventListener('click', ()=>{ intakeDraft.dept=b.dataset.dept; render(); }));
+  document.querySelectorAll('.tier-btn').forEach(b=>b.addEventListener('click', ()=>{ intakeDraft.tier=b.dataset.tier; render(); }));
+  const codeInput = document.getElementById('intake-code'); if(codeInput) codeInput.addEventListener('input', e=>intakeDraft.code=e.target.value);
+  const noUpc = document.getElementById('intake-no-upc'); if(noUpc) noUpc.addEventListener('change', e=>{ intakeDraft.hasUPC = !e.target.checked; render(); });
+  const scanBtn = document.getElementById('intake-scan-btn'); if(scanBtn) scanBtn.addEventListener('click', ()=>openScanner(handleIntakeCodeScanned, {title:'Scan the toy barcode', defaultMode:'barcode'}));
+  const desc = document.getElementById('intake-desc'); if(desc) desc.addEventListener('input', e=>intakeDraft.description=e.target.value);
+  const val = document.getElementById('intake-value'); if(val) val.addEventListener('input', e=>intakeDraft.unitValue=e.target.value);
+  const qty = document.getElementById('intake-qty'); if(qty) qty.addEventListener('input', e=>intakeDraft.qty=e.target.value);
+  const loc = document.getElementById('intake-loc'); if(loc) loc.addEventListener('input', e=>intakeDraft.location=e.target.value);
+  const saveBtn = document.getElementById('intake-save-btn'); if(saveBtn) saveBtn.addEventListener('click', saveIntakeItem);
+}
+function handleIntakeCodeScanned(code){ intakeDraft.code = code; render(); }
+
+/* ---- Quick Add: scan the department/size sticker already on the toy ---- */
+let lastQuickAddCode = null, lastQuickAddTime = 0;
+function openQuickAddScanner(){
+  openScanner(handleQuickAddScan, {title:'Scan a toy sticker — tap Done when finished', continuous:true, defaultMode:'qr'});
+}
+function tierMidValue(tierCode){
+  const t = state.tiers.find(t=>t.code===tierCode);
+  if(!t) return 0;
+  return t.max!=null ? (Number(t.min)+Number(t.max))/2 : Number(t.min);
+}
+async function handleQuickAddScan(raw){
+  const statusEl = document.getElementById('scan-status');
+  const parsed = parseCategoryCode(raw);
+  if(!parsed){
+    showScanFlash('✕ Not recognized', 'Try again, or type the code below', 'error');
+    if(statusEl) statusEl.textContent = 'Not a recognized sticker code — try again, or type it below.';
+    return;
+  }
+  const canonicalCode = parsed.dept + '-' + parsed.tier;
+  const now = Date.now();
+  if(lastQuickAddCode === canonicalCode && (now - lastQuickAddTime) < 1500){
+    showScanFlash('Already counted', 'Scan the next toy', 'warn');
+    if(statusEl) statusEl.textContent = `Already counted that one — scan the next toy.`;
+    return;
+  }
+  lastQuickAddCode = canonicalCode; lastQuickAddTime = now;
+  if(statusEl) statusEl.textContent = 'Saving…';
+  try{
+    await api('addItem', {
+      code: canonicalCode, hasUPC: false,
+      description: `${tierName(parsed.tier)} toy — ${deptName(parsed.dept)}`,
+      dept: parsed.dept, tier: parsed.tier,
+      unitValue: tierMidValue(parsed.tier), qty: 1, location: ''
+    });
+    await refreshAll(true);
+    const item = state.inventory.find(i=>i.code===canonicalCode);
+    showScanFlash('✓ Added', `${deptName(parsed.dept)} · ${tierName(parsed.tier)} — now ${item?item.qtyAvailable:'?'}`, 'ok');
+    if(statusEl) statusEl.textContent = `✓ Added — ${deptName(parsed.dept)} · ${tierName(parsed.tier)}. Now ${item?item.qtyAvailable:'?'} in stock. Scan the next toy.`;
+    if(currentView==='intake') render();
+  }catch(e){
+    showScanFlash('✕ Could not save', e.message, 'error');
+    if(statusEl) statusEl.textContent = 'Could not save: ' + e.message;
+  }
+}
+
+async function saveIntakeItem(){
+  if(!intakeDraft.dept){ alert('Pick a department first.'); return; }
+  if(!intakeDraft.tier){ alert('Pick a size tier first.'); return; }
+  const desc = (document.getElementById('intake-desc')||{}).value || intakeDraft.description;
+  const unitValue = parseFloat((document.getElementById('intake-value')||{}).value || intakeDraft.unitValue) || 0;
+  const qty = parseInt((document.getElementById('intake-qty')||{}).value || intakeDraft.qty) || 1;
+  const location = (document.getElementById('intake-loc')||{}).value || intakeDraft.location;
+  let code = (document.getElementById('intake-code')||{}).value || intakeDraft.code;
+  const hasUPC = intakeDraft.hasUPC && !!code;
+  if(!code) code = `INT-${intakeDraft.dept}-${intakeDraft.tier}-${Date.now().toString(36).toUpperCase()}`;
+  try{
+    await api('addItem', { code, hasUPC, description: desc||'(no description)', dept: intakeDraft.dept, tier: intakeDraft.tier, unitValue, qty, location });
+    const savedDept = intakeDraft.dept, savedTier = intakeDraft.tier;
+    intakeDraft = { dept: savedDept, tier: savedTier, code:'', hasUPC:true, description:'', unitValue:'', qty:1, location:'' };
+    await refreshAll(true);
+    render();
+    showIntakeConfirm(code);
+  }catch(e){ alert('Could not save: ' + e.message); }
+}
+function showIntakeConfirm(code){
+  openModal(`
+    <div class="modal-head"><h3>Added to inventory</h3><button class="close-x" id="scan-close">&times;</button></div>
+    <div class="banner banner-ok">Code: <b>${code}</b></div>
+    <p style="font-size:13px;color:var(--ink-soft);">Print a sticker now, or keep scanning more toys?</p>
+    <div class="btn-row"><button class="btn btn-secondary" id="ic-keep-scanning">Keep scanning</button><button class="btn btn-primary" id="ic-print-now">Print sticker</button></div>
+  `, {center:true});
+  document.getElementById('scan-close').addEventListener('click', closeModal);
+  document.getElementById('ic-keep-scanning').addEventListener('click', closeModal);
+  document.getElementById('ic-print-now').addEventListener('click', ()=>{ closeModal(); printLabelsForCodes([code]); });
+}
+
+/* =========================================================
+   CHECKOUT
+   ========================================================= */
+let activeFamilyId = null;
+let activeChildId = null;
+function getFamily(id){ const q=String(id||'').trim().toLowerCase(); return state.families.find(f=>f.id.toLowerCase()===q); }
+function getChild(id){ return state.children.find(c=>c.id===id); }
+function childrenOf(familyId){ return state.children.filter(c=>c.familyId===familyId); }
+
+function renderCheckout(){
+  const fam = activeFamilyId ? getFamily(activeFamilyId) : null;
+  return `
+  <div class="card"><h2>Family</h2>
+    <div style="position:relative; margin-bottom:10px;">
+      <div class="btn-row"><input type="text" id="family-id-input" placeholder="Search family ID or note…" value="${activeFamilyId||''}" autocomplete="off"><button class="btn btn-secondary btn-sm" id="family-lookup-btn">Go</button></div>
+      <div id="family-suggestions" style="position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); z-index:10; max-height:240px; overflow-y:auto; display:none;"></div>
+    </div>
+    <button class="btn btn-ghost" id="new-family-btn" style="width:auto;padding:0;">+ New family</button>
+  </div>
+  ${fam ? renderFamilyChildren(fam) : `<div class="empty-state"><div class="big">👪</div>Enter or create a family to begin checkout.</div>`}`;
+}
+function renderFamilyChildren(fam){
+  const kids = childrenOf(fam.id);
+  const child = activeChildId ? getChild(activeChildId) : null;
+  return `
+  <div class="card">
+    <h2>${fam.id} <span class="muted">${fam.note?('· '+fam.note):''}</span></h2>
+    ${kids.length===0 ? `<div class="empty-state" style="padding:14px;">No kids added yet — add each child so volunteers can track their own allowance.</div>` :
+      kids.map(k=>{
+        const remS = (k.allowed.S||0)-(k.scanned.S||0), remM = (k.allowed.M||0)-(k.scanned.M||0), remL = (k.allowed.L||0)-(k.scanned.L||0);
+        const allOut = remS<=0 && remM<=0 && remL<=0;
+        return `<div class="item-row" data-child="${k.id}" style="cursor:pointer; ${child&&child.id===k.id?'background:var(--brand-tint); margin:0 -16px; padding:11px 16px; border-radius:8px;':''}">
+          <div class="info">
+            <div class="desc">${k.name || '(unnamed)'} ${k.age!==''?('· age '+k.age):''}${k.gender?(' · '+k.gender):''}</div>
+            <div class="meta">
+              <span class="pill pill-S" style="margin-right:4px;">S:${remS}</span>
+              <span class="pill pill-M" style="margin-right:4px;">M:${remM}</span>
+              <span class="pill pill-L">L:${remL}</span>
+              ${allOut?' · all done 🎁':''}
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm" data-edit-child="${k.id}">Edit</button>
+        </div>`;
+      }).join('')}
+  </div>
+  ${child ? renderActiveChild(fam, child) : (kids.length ? `<div class="card"><div class="empty-state" style="padding:14px;">Tap a child above to start scanning for them.</div></div>` : '')}
+  <div class="card"><button class="btn btn-secondary" id="finish-family-btn">Mark family complete</button></div>`;
+}
+function renderActiveChild(fam, child){
+  const tiers = state.tiers;
+  const remaining = t=> (child.allowed[t]||0) - (child.scanned[t]||0);
+  const allOut = tiers.every(t=>remaining(t.code)<=0);
+  const childLog = state.log.filter(l=>l.childId===child.id);
+  return `
+  <div class="card">
+    <h2>Shopping for ${child.name||'this child'}</h2>
+    <div class="stat-grid" style="margin-bottom:12px;">
+      ${tiers.map(t=>`<div class="stat-box" style="border-color:${remaining(t.code)<=0?'var(--danger)':'var(--line)'}"><div class="num" style="color:${tierColor(t.code)}">${remaining(t.code)}</div><div class="lab">${t.name} left</div></div>`).join('')}
+    </div>
+    ${allOut ? `<div class="banner banner-ok">All allowances used for ${child.name||'this child'}. 🎁</div>` : ''}
+    <button class="btn btn-primary" id="checkout-scan-btn">▣ Scan a toy to give</button>
+  </div>
+  <div class="card">
+    <h2>Given to ${child.name||'this child'} <span class="muted">${childLog.length} item${childLog.length===1?'':'s'}</span></h2>
+    ${childLog.length===0 ? `<div class="empty-state" style="padding:14px;">Nothing scanned yet.</div>` :
+      childLog.slice().reverse().map(l=>`
+        <div class="item-row">
+          <span class="pill pill-${l.tier}">${tierAbbrev(l.tier)}</span>
+          <div class="info"><div class="desc">${l.description}</div><div class="meta">${deptName(l.dept)} · ${fmtTime(l.timestamp)}${l.note?(' · '+l.note):''}</div></div>
+          <button class="btn btn-secondary btn-sm" data-undo-child="${l.childId}" data-undo-code="${l.code}" data-undo-time="${l.timestamp}">Undo</button>
+        </div>`).join('')}
+  </div>`;
+}
+function attachCheckoutHandlers(){
+  const idInput = document.getElementById('family-id-input');
+  const lookupBtn = document.getElementById('family-lookup-btn');
+  if(lookupBtn) lookupBtn.addEventListener('click', ()=>{ hideFamilySuggestions(); lookupOrPromptFamily(idInput.value.trim()); });
+  if(idInput) idInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ hideFamilySuggestions(); lookupOrPromptFamily(idInput.value.trim()); } });
+  if(idInput) idInput.addEventListener('input', e=>renderFamilySuggestions(e.target.value));
+  if(idInput) idInput.addEventListener('focus', e=>{ if(e.target.value.trim()) renderFamilySuggestions(e.target.value); });
+  if(idInput) idInput.addEventListener('blur', ()=>{ setTimeout(hideFamilySuggestions, 150); });
+  const newFamBtn = document.getElementById('new-family-btn'); if(newFamBtn) newFamBtn.addEventListener('click', openNewFamilyModal);
+  document.querySelectorAll('[data-child]').forEach(row=>row.addEventListener('click', (e)=>{
+    if(e.target.closest('[data-edit-child]')) return;
+    activeChildId = row.dataset.child; render();
+  }));
+  document.querySelectorAll('[data-edit-child]').forEach(btn=>btn.addEventListener('click', (e)=>{ e.stopPropagation(); openEditChildModal(btn.dataset.editChild); }));
+  const scanBtn = document.getElementById('checkout-scan-btn'); if(scanBtn) scanBtn.addEventListener('click', handleCheckoutScanClick);
+  const finishBtn = document.getElementById('finish-family-btn');
+  if(finishBtn) finishBtn.addEventListener('click', async ()=>{ await api('completeFamily', {id: activeFamilyId}); activeFamilyId = null; activeChildId = null; await refreshAll(true); render(); });
+  document.querySelectorAll('[data-undo-child]').forEach(b=>b.addEventListener('click', ()=>undoCheckoutEntry(b.dataset.undoChild, b.dataset.undoCode, b.dataset.undoTime)));
+}
+function handleCheckoutScanClick(){
+  ensureVolunteerName(()=>{
+    if(!activeFamilyId){ alert('Enter or create a family first.'); return; }
+    if(!activeChildId){ alert("Pick which child you're shopping for first."); return; }
+    openScanner(processCheckoutCode, {title:'Scan a toy'});
+  });
+}
+function renderFamilySuggestions(query){
+  const box = document.getElementById('family-suggestions');
+  if(!box) return;
+  const q = String(query||'').trim().toLowerCase();
+  if(!q){ hideFamilySuggestions(); return; }
+  const matches = state.families.filter(f => f.id.toLowerCase().includes(q) || (f.note||'').toLowerCase().includes(q)).slice(0,8);
+  if(matches.length===0){ hideFamilySuggestions(); return; }
+  box.innerHTML = matches.map(f=>`
+    <div data-fam-suggestion="${f.id}" style="padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--line);">
+      <div style="font-weight:700; font-size:14px;">${f.id}</div>
+      ${f.note?`<div style="font-size:12px; color:var(--ink-soft);">${f.note}</div>`:''}
+    </div>`).join('');
+  box.querySelectorAll('[data-fam-suggestion]').forEach(item=>{
+    item.addEventListener('mousedown', (e)=>{
+      e.preventDefault();
+      const id = item.dataset.famSuggestion;
+      document.getElementById('family-id-input').value = id;
+      hideFamilySuggestions();
+      lookupOrPromptFamily(id);
+    });
+  });
+  box.style.display = 'block';
+}
+function hideFamilySuggestions(){
+  const box = document.getElementById('family-suggestions');
+  if(box){ box.style.display = 'none'; box.innerHTML = ''; }
+}
+function lookupOrPromptFamily(id){
+  if(!id) return;
+  const fam = getFamily(id);
+  activeChildId = null;
+  if(fam){ activeFamilyId = fam.id; render(); return; }
+  openNewFamilyModal(id);
+}
+function openNewFamilyModal(prefillId){
+  openModal(`
+    <div class="modal-head"><h3>New family</h3><button class="close-x" id="scan-close">&times;</button></div>
+    <label class="field"><span class="lab">Family ID</span><input type="text" id="nf-id" value="${prefillId||('FAM-'+String(state.families.length+1).padStart(4,'0'))}"></label>
+    <label class="field"><span class="lab">Note (optional)</span><input type="text" id="nf-note" placeholder="e.g. last name"></label>
+    <button class="btn btn-primary" id="nf-save">Create family</button>
+  `, {center:true});
+  document.getElementById('scan-close').addEventListener('click', closeModal);
+  document.getElementById('nf-save').addEventListener('click', async ()=>{
+    const id = document.getElementById('nf-id').value.trim();
+    if(!id){ alert('Family ID is required.'); return; }
+    try{
+      await api('createFamily', { id, note: document.getElementById('nf-note').value.trim() });
+      activeFamilyId = id; activeChildId = null;
+      closeModal();
+      await refreshAll(true);
+      render();
+    }catch(e){ alert('Could not create family: ' + e.message); }
+  });
+}
+function openEditChildModal(childId){
+  const k = getChild(childId);
+  if(!k) return;
+  openModal(`
+    <div class="modal-head"><h3>Edit child</h3><button class="close-x" id="scan-close">&times;</button></div>
+    <label class="field"><span class="lab">Name</span><input type="text" id="ec-name" value="${k.name}"></label>
+    <div class="grid-2">
+      <label class="field"><span class="lab">Age (optional)</span><input type="number" id="ec-age" min="0" max="18" value="${k.age}"></label>
+      <label class="field"><span class="lab">Gender</span>
+        <select id="ec-gender">
+          <option value="" ${k.gender===''?'selected':''}>Not specified</option>
+          <option value="Boy" ${k.gender==='Boy'?'selected':''}>Boy</option>
+          <option value="Girl" ${k.gender==='Girl'?'selected':''}>Girl</option>
+        </select>
+      </label>
+    </div>
+    <h4 class="section-lab" style="margin-top:2px;">Allowance</h4>
+    <div class="grid-3">
+      <label class="field"><span class="lab">${tierName('L')}</span><input type="number" id="ec-l" value="${k.allowed.L}"></label>
+      <label class="field"><span class="lab">${tierName('M')}</span><input type="number" id="ec-m" value="${k.allowed.M}"></label>
+      <label class="field"><span class="lab">${tierName('S')}</span><input type="number" id="ec-s" value="${k.allowed.S}"></label>
+    </div>
+    <div style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">Already scanned: S ${k.scanned.S} · M ${k.scanned.M} · L ${k.scanned.L}</div>
+    <button class="btn btn-primary" id="ec-save">Save</button>
+    <button class="btn btn-ghost" id="ec-delete" style="margin-top:10px;color:var(--danger);">Remove this child</button>
+  `, {center:true});
+  document.getElementById('scan-close').addEventListener('click', closeModal);
+  document.getElementById('ec-save').addEventListener('click', async ()=>{
+    try{
+      await api('updateChild', { id: childId, name: document.getElementById('ec-name').value.trim(), age: document.getElementById('ec-age').value, gender: document.getElementById('ec-gender').value, allowedL: parseFloat(document.getElementById('ec-l').value)||0, allowedM: parseFloat(document.getElementById('ec-m').value)||0, allowedS: parseFloat(document.getElementById('ec-s').value)||0 });
+      closeModal(); await refreshAll(true); render();
+    }catch(e){ alert('Could not save: ' + e.message); }
+  });
+  document.getElementById('ec-delete').addEventListener('click', async ()=>{
+    if(!confirm('Remove this child from the family?')) return;
+    try{
+      await api('deleteChild', {id: childId});
+      if(activeChildId===childId) activeChildId = null;
+      closeModal(); await refreshAll(true); render();
+    }catch(e){ alert('Could not remove: ' + e.message); }
+  });
+}
+async function processCheckoutCode(code){
+  const child = getChild(activeChildId);
+  if(!child) return;
+  try{
+    const result = await api('checkoutScan', { childId: child.id, code, volunteer: volunteerName, override:false });
+    if(result.notFound){
+      openModal(`
+        <div class="modal-head"><h3>Not found</h3><button class="close-x" id="scan-close">&times;</button></div>
+        <div class="banner banner-warn">No inventory item matches code <b>${code}</b>. It may need to be added via Intake first, or check for a typo.</div>
+        <button class="btn btn-secondary" id="retry-scan">Try again</button>
+      `, {center:true});
+      document.getElementById('scan-close').addEventListener('click', closeModal);
+      document.getElementById('retry-scan').addEventListener('click', ()=>openScanner(processCheckoutCode, {title:'Scan a toy'}));
+      return;
+    }
+    if(result.blocked){
+      const reason = result.reason==='out_of_stock' ? 'This toy shows 0 available in inventory.' : `${child.name||'This child'}'s allowance for that size is already used.`;
+      openModal(`
+        <div class="modal-head"><h3>Heads up</h3><button class="close-x" id="scan-close">&times;</button></div>
+        <div class="banner banner-warn">${reason}</div>
+        <div class="btn-row" style="margin-top:10px;"><button class="btn btn-secondary" id="co-cancel">Cancel</button><button class="btn btn-primary" id="co-override">Give anyway</button></div>
+      `, {center:true});
+      document.getElementById('scan-close').addEventListener('click', closeModal);
+      document.getElementById('co-cancel').addEventListener('click', closeModal);
+      document.getElementById('co-override').addEventListener('click', async ()=>{
+        closeModal();
+        try{ await api('checkoutScan', { childId: child.id, code, volunteer: volunteerName, override:true }); beep(); vibrate(); await refreshAll(true); render(); }
+        catch(e){ alert('Could not check out: ' + e.message); }
+      });
+      return;
+    }
+    beep(); vibrate();
+    await refreshAll(true);
+    render();
+  }catch(e){ alert('Scan failed: ' + e.message); }
+}
+async function undoCheckoutEntry(childId, code, timestamp){
+  try{ await api('undoCheckout', {childId, code, timestamp}); await refreshAll(true); render(); }
+  catch(e){ alert('Could not undo: ' + e.message); }
+}
+
+/* =========================================================
+   INVENTORY
+   ========================================================= */
+let inventorySearch = '';
+function renderInventory(){
+  const q = inventorySearch.toLowerCase();
+  const items = state.inventory.filter(i=>!q || i.description.toLowerCase().includes(q) || i.code.toLowerCase().includes(q) || deptName(i.dept).toLowerCase().includes(q));
+  const totalAvail = items.reduce((s,i)=>s+(i.qtyAvailable||0),0);
+  return `
+  <div class="card">
+    <input type="text" id="inv-search" class="search-bar" placeholder="Search description, code, or department…" value="${inventorySearch}">
+    <div style="font-size:12px;color:var(--ink-soft);">${items.length} item type${items.length===1?'':'s'} · ${totalAvail} unit${totalAvail===1?'':'s'} available</div>
+  </div>
+  <div class="card">
+    ${items.length===0 ? `<div class="empty-state"><div class="big">📦</div>No toys yet — add some from Intake.</div>` :
+      items.slice().sort((a,b)=> (a.dept+a.tier).localeCompare(b.dept+b.tier)).map(i=>`
+        <div class="item-row" data-item="${i.code}">
+          <span class="pill pill-${i.tier}">${tierAbbrev(i.tier)}</span>
+          <div class="info"><div class="desc">${i.description}</div><div class="meta">${deptName(i.dept)} · ${money(i.unitValue)} · ${i.code}${i.location?(' · '+i.location):''}</div></div>
+          <div class="qty ${(i.qtyAvailable||0)<=0?'zero':''}">${i.qtyAvailable||0}</div>
+        </div>`).join('')}
+  </div>`;
+}
+function attachInventoryHandlers(){
+  const search = document.getElementById('inv-search');
+  if(search){ search.addEventListener('input', e=>{ inventorySearch = e.target.value; render(); const el=document.getElementById('inv-search'); el.focus(); el.selectionStart = el.value.length; }); }
+  document.querySelectorAll('[data-item]').forEach(row=>row.addEventListener('click', ()=>openEditItemModal(row.dataset.item)));
+}
+function openEditItemModal(code){
+  const item = state.inventory.find(i=>i.code===code);
+  if(!item) return;
+  const tiers = state.tiers, depts = state.departments;
+  openModal(`
+    <div class="modal-head"><h3>Edit item</h3><button class="close-x" id="scan-close">&times;</button></div>
+    <label class="field"><span class="lab">Description</span><input type="text" id="ei-desc" value="${item.description}"></label>
+    <div class="grid-2">
+      <label class="field"><span class="lab">Department</span><select id="ei-dept">${depts.map(d=>`<option value="${d.code}" ${d.code===item.dept?'selected':''}>${d.name}</option>`).join('')}</select></label>
+      <label class="field"><span class="lab">Tier</span><select id="ei-tier">${tiers.map(t=>`<option value="${t.code}" ${t.code===item.tier?'selected':''}>${t.name}</option>`).join('')}</select></label>
+    </div>
+    <div class="grid-2">
+      <label class="field"><span class="lab">Unit value ($)</span><input type="number" step="0.01" id="ei-value" value="${item.unitValue}"></label>
+      <label class="field"><span class="lab">Qty available</span><input type="number" id="ei-qty" value="${item.qtyAvailable}"></label>
+    </div>
+    <label class="field"><span class="lab">Location</span><input type="text" id="ei-loc" value="${item.location||''}"></label>
+    <div style="font-size:11px;color:var(--ink-soft);margin-bottom:10px;">Code: ${item.code}</div>
+    <div class="btn-row"><button class="btn btn-secondary" id="ei-print">Print sticker</button><button class="btn btn-primary" id="ei-save">Save</button></div>
+    <button class="btn btn-ghost" id="ei-delete" style="margin-top:10px;color:var(--danger);">Delete this item</button>
+  `, {center:true});
+  document.getElementById('scan-close').addEventListener('click', closeModal);
+  document.getElementById('ei-print').addEventListener('click', ()=>{ closeModal(); printLabelsForCodes([item.code]); });
+  document.getElementById('ei-save').addEventListener('click', async ()=>{
+    try{
+      await api('updateItem', {
+        originalCode: item.code,
+        description: document.getElementById('ei-desc').value.trim() || item.description,
+        dept: document.getElementById('ei-dept').value,
+        tier: document.getElementById('ei-tier').value,
+        unitValue: parseFloat(document.getElementById('ei-value').value)||0,
+        qtyAvailable: parseInt(document.getElementById('ei-qty').value)||0,
+        location: document.getElementById('ei-loc').value.trim()
+      });
+      closeModal(); await refreshAll(true); render();
+    }catch(e){ alert('Could not save: ' + e.message); }
+  });
+  document.getElementById('ei-delete').addEventListener('click', async ()=>{
+    if(!confirm('Delete this item from inventory?')) return;
+    try{ await api('deleteItem', {code: item.code}); closeModal(); await refreshAll(true); render(); }
+    catch(e){ alert('Could not delete: ' + e.message); }
+  });
+}
+
+/* =========================================================
+   LABELS
+   ========================================================= */
+let labelCopyCounts = null;
+function ensureLabelCopyCounts(){
+  if(labelCopyCounts) return;
+  labelCopyCounts = {};
+  state.departments.forEach(d=>{ state.tiers.forEach(t=>{ labelCopyCounts[d.code+'-'+t.code] = 12; }); });
+}
+function renderLabels(){
+  ensureLabelCopyCounts();
+  const depts = state.departments, tiers = state.tiers;
+  return `
+  <div class="card">
+    <h2>Print toy stickers</h2>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:-4px;">One QR sticker per department/size combo — print a stack of each, then volunteers stick the matching one on each toy as they sort it (covering the original barcode). Sized for a standard 3-across label sheet (e.g. Avery 5160).</p>
+    <div class="btn-row" style="margin-bottom:6px;">
+      <input type="number" id="bulk-copy-count" value="12" min="0" placeholder="Copies">
+      <button class="btn btn-secondary btn-sm" id="apply-bulk-copies">Set all to this</button>
+    </div>
+  </div>
+  ${depts.map(d=>`
+    <div class="card">
+      <h2>${d.name}</h2>
+      ${tiers.map(t=>`
+        <div class="label-select-row">
+          <span class="pill pill-${t.code}" style="min-width:32px;">${tierAbbrev(t.code)}</span>
+          <div class="info"><div class="desc">${t.name}</div></div>
+          <input type="number" min="0" data-copy-key="${d.code}-${t.code}" value="${labelCopyCounts[d.code+'-'+t.code]}" style="max-width:70px;">
+        </div>`).join('')}
+    </div>`).join('')}
+  <div class="card">
+    <button class="btn btn-primary" id="print-category-stickers">Print stickers</button>
+  </div>
+  <div class="card">
+    <h2>Department &amp; size QR reference sheet</h2>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:-4px;">A single-copy reference sheet of all 27 codes, for a clipboard or wall reference.</p>
+    <button class="btn btn-secondary" id="print-ref-sheet">Print reference sheet</button>
+  </div>
+  <div class="card">
+    <h2>Print box labels</h2>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:-4px;">A blank numbered label for each cardboard box — lists all 9 departments with a line for each size, so you can hand-write what's inside as you fill it.</p>
+    <div class="grid-2">
+      <label class="field"><span class="lab">Starting box #</span><input type="number" id="box-start-num" value="1" min="1"></label>
+      <label class="field"><span class="lab">How many boxes</span><input type="number" id="box-count" value="5" min="1"></label>
+    </div>
+    <button class="btn btn-primary" id="print-box-labels">Print box labels</button>
+  </div>
+  <div class="card">
+    <h2>Box directory</h2>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:-4px;">After you write a box's contents by hand, log it here too — then you can search which box has what.</p>
+    <div class="grid-2">
+      <label class="field"><span class="lab">Box #</span><input type="text" id="be-box" placeholder="e.g. 4"></label>
+      <label class="field"><span class="lab">Qty noted</span><input type="number" id="be-qty" min="0" value="0"></label>
+    </div>
+    <div class="grid-2">
+      <label class="field"><span class="lab">Department</span>
+        <select id="be-dept">${depts.map(d=>`<option value="${d.code}">${d.name}</option>`).join('')}</select>
+      </label>
+      <label class="field"><span class="lab">Size</span>
+        <select id="be-tier">${tiers.map(t=>`<option value="${t.code}">${t.name}</option>`).join('')}</select>
+      </label>
+    </div>
+    <button class="btn btn-primary" id="save-box-entry">Save to directory</button>
+
+    <h4 class="section-lab" style="margin-top:20px;">Search: which box has…</h4>
+    <div class="grid-2">
+      <label class="field"><span class="lab">Department</span>
+        <select id="search-box-dept"><option value="">Any</option>${depts.map(d=>`<option value="${d.code}" ${boxSearchDept===d.code?'selected':''}>${d.name}</option>`).join('')}</select>
+      </label>
+      <label class="field"><span class="lab">Size</span>
+        <select id="search-box-tier"><option value="">Any</option>${tiers.map(t=>`<option value="${t.code}" ${boxSearchTier===t.code?'selected':''}>${t.name}</option>`).join('')}</select>
+      </label>
+    </div>
+    ${renderBoxDirectoryList()}
+  </div>`;
+}
+let boxSearchDept = '', boxSearchTier = '';
+function renderBoxDirectoryList(){
+  const rows = state.boxes.filter(b => (!boxSearchDept || b.dept===boxSearchDept) && (!boxSearchTier || b.tier===boxSearchTier));
+  if(rows.length===0) return `<div class="empty-state" style="padding:14px;">No matching box entries yet.</div>`;
+  return rows.slice().sort((a,b)=>String(a.boxNumber).localeCompare(String(b.boxNumber), undefined, {numeric:true})).map(b=>`
+    <div class="item-row">
+      <span class="pill pill-${b.tier}">${tierAbbrev(b.tier)}</span>
+      <div class="info"><div class="desc">Box ${b.boxNumber} — ${deptName(b.dept)}</div><div class="meta">Qty noted: ${b.qty}</div></div>
+      <button class="btn btn-secondary btn-sm" data-delete-box="${b.boxNumber}|${b.dept}|${b.tier}">Remove</button>
+    </div>`).join('');
+}
+function attachLabelsHandlers(){
+  ensureLabelCopyCounts();
+  document.querySelectorAll('[data-copy-key]').forEach(inp=>inp.addEventListener('input', e=>{
+    labelCopyCounts[e.target.dataset.copyKey] = parseInt(e.target.value)||0;
+  }));
+  const applyBulk = document.getElementById('apply-bulk-copies');
+  if(applyBulk) applyBulk.addEventListener('click', ()=>{
+    const n = parseInt(document.getElementById('bulk-copy-count').value)||0;
+    Object.keys(labelCopyCounts).forEach(k=>labelCopyCounts[k]=n);
+    render();
+  });
+  const printBtn = document.getElementById('print-category-stickers');
+  if(printBtn) printBtn.addEventListener('click', ()=>{
+    const requests = [];
+    state.departments.forEach(d=>{
+      state.tiers.forEach(t=>{
+        const key = d.code+'-'+t.code;
+        const copies = labelCopyCounts[key]||0;
+        if(copies>0) requests.push({dept:d, tier:t, copies});
+      });
+    });
+    if(requests.length===0){ alert('Set at least one copy count above 0.'); return; }
+    printCategoryStickers(requests);
+  });
+  const refBtn = document.getElementById('print-ref-sheet'); if(refBtn) refBtn.addEventListener('click', printReferenceSheet);
+  const printBoxBtn = document.getElementById('print-box-labels');
+  if(printBoxBtn) printBoxBtn.addEventListener('click', ()=>{
+    const start = parseInt(document.getElementById('box-start-num').value)||1;
+    const count = parseInt(document.getElementById('box-count').value)||0;
+    if(count<=0){ alert('Enter how many boxes to print.'); return; }
+    printBoxLabels(start, count);
+  });
+  const saveBoxBtn = document.getElementById('save-box-entry');
+  if(saveBoxBtn) saveBoxBtn.addEventListener('click', async ()=>{
+    const boxNumber = document.getElementById('be-box').value.trim();
+    if(!boxNumber){ alert('Enter a box number.'); return; }
+    try{
+      await api('saveBoxEntry', {
+        boxNumber,
+        dept: document.getElementById('be-dept').value,
+        tier: document.getElementById('be-tier').value,
+        qty: parseInt(document.getElementById('be-qty').value)||0
+      });
+      document.getElementById('be-box').value = '';
+      document.getElementById('be-qty').value = '0';
+      await refreshAll(true);
+      render();
+    }catch(e){ alert('Could not save: ' + e.message); }
+  });
+  const searchDept = document.getElementById('search-box-dept');
+  if(searchDept) searchDept.addEventListener('change', e=>{ boxSearchDept = e.target.value; render(); });
+  const searchTier = document.getElementById('search-box-tier');
+  if(searchTier) searchTier.addEventListener('change', e=>{ boxSearchTier = e.target.value; render(); });
+  document.querySelectorAll('[data-delete-box]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const [boxNumber, dept, tier] = btn.dataset.deleteBox.split('|');
+    try{ await api('deleteBoxEntry', {boxNumber, dept, tier}); await refreshAll(true); render(); }
+    catch(e){ alert('Could not remove: ' + e.message); }
+  }));
+}
+function printCategoryStickers(requests){
+  if(!requests || requests.length===0){ alert('Nothing to print.'); return; }
+  const printWin = window.open('', '_blank');
+  if(!printWin){ alert('Your browser blocked the print window as a pop-up. Please allow pop-ups for this site and try again.'); return; }
+  let stickersHtml = '';
+  requests.forEach(req=>{
+    const code = req.dept.code + '-' + req.tier.code;
+    const single = `
+    <div class="sticker">
+      <div class="tier-dot" style="background:${tierColorHex(req.tier.code)}"></div>
+      <div class="sticker-text">
+        <div class="sticker-tier" style="color:${tierColorHex(req.tier.code)}">${req.tier.name}</div>
+        <div class="sticker-dept">${req.dept.name}</div>
+      </div>
+      <div class="qr" data-qr-text="${code}"></div>
+      <div class="code">${code}</div>
+    </div>`;
+    for(let n=0; n<req.copies; n++) stickersHtml += single;
+  });
+  printWin.document.open();
+  printWin.document.write(stickerSheetDoc(stickersHtml));
+  printWin.document.close();
+}
+function printLabelsForCodes(codes){
+  const items = codes.map(code=>state.inventory.find(i=>i.code===code)).filter(Boolean);
+  if(items.length===0){ alert('No matching items to print.'); return; }
+  const printWin = window.open('', '_blank');
+  if(!printWin){ alert('Your browser blocked the print window as a pop-up. Please allow pop-ups for this site and try again.'); return; }
+  const stickersHtml = items.map(item => `
+    <div class="sticker">
+      <div class="tier-dot" style="background:${tierColorHex(item.tier)}"></div>
+      <div class="sticker-text">
+        <div class="sticker-tier" style="color:${tierColorHex(item.tier)}">${tierName(item.tier)}</div>
+        <div class="sticker-dept">${deptName(item.dept)}</div>
+      </div>
+      <div class="qr" data-qr-text="${item.code}"></div>
+      <div class="code">${item.code}</div>
+    </div>`).join('');
+  printWin.document.open();
+  printWin.document.write(stickerSheetDoc(stickersHtml));
+  printWin.document.close();
+}
+function stickerSheetDoc(stickersHtml){
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Toy Stickers</title><style>
+    *{box-sizing:border-box;}
+    body{margin:0; font-family:Arial,Helvetica,sans-serif;}
+    .sticker-sheet{display:grid; grid-template-columns:repeat(3, 2.625in); grid-auto-rows:1in; column-gap:0.125in; row-gap:0;}
+    .sticker{border:1px solid #ddd; display:flex; align-items:center; gap:0.08in; padding:0.05in 0.09in; overflow:hidden; position:relative;}
+    .tier-dot{width:0.2in; height:0.2in; border-radius:50%; flex-shrink:0;}
+    .sticker-text{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px;}
+    .sticker-tier{font-size:14px; font-weight:800; text-transform:uppercase; letter-spacing:0.3px; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .sticker-dept{font-size:12.5px; font-weight:700; color:#222; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .qr{width:0.48in; height:0.48in; flex-shrink:0;}
+    .code{font-size:6px; color:#aaa; font-family:monospace; position:absolute; bottom:2px; right:6px;}
+    @page{ size:letter; margin:0.5in 0.1875in; }
+  </style></head><body>
+    <div class="sticker-sheet">${stickersHtml}</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+    <script>
+      window.addEventListener('load', function(){
+        document.querySelectorAll('[data-qr-text]').forEach(function(el){
+          try{ new QRCode(el, {text: el.getAttribute('data-qr-text'), width:52, height:52, correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+        });
+        setTimeout(function(){ window.print(); }, 350);
+      });
+    <\/script>
+  </body></html>`;
+}
+function printReferenceSheet(){
+  const cards = [];
+  state.departments.forEach(d=>{ state.tiers.forEach(t=>{ cards.push({label:d.name+' · '+t.name, value:d.code+'-'+t.code, kind:t.code}); }); });
+  const printWin = window.open('', '_blank');
+  if(!printWin){ alert('Your browser blocked the print window as a pop-up. Please allow pop-ups for this site and try again.'); return; }
+  const cardsHtml = cards.map(c => `
+    <div class="ref-card">
+      <div class="kind">${c.kind}</div>
+      <div class="lab">${c.label}</div>
+      <div class="qr" data-qr-text="${c.value}"></div>
+      <div class="code">${c.value}</div>
+    </div>`).join('');
+  printWin.document.open();
+  printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Toy Drive QR Reference Sheet</title><style>
+    *{box-sizing:border-box;}
+    body{margin:0; font-family:Arial,Helvetica,sans-serif;}
+    .ref-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.2in; padding:0.3in;}
+    .ref-card{border:1px solid #ccc; border-radius:8px; padding:10px; text-align:center;}
+    .ref-card .kind{font-size:10px; color:#888; text-transform:uppercase;}
+    .ref-card .lab{font-weight:800; font-size:13px; margin:2px 0 6px;}
+    .ref-card .qr{margin:0 auto; width:90px; height:90px;}
+    .ref-card .code{font-size:10px; color:#999; font-family:monospace; margin-top:4px;}
+    @page{ size:letter; margin:0.4in; }
+  </style></head><body>
+    <div class="ref-grid">${cardsHtml}</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+    <script>
+      window.addEventListener('load', function(){
+        document.querySelectorAll('[data-qr-text]').forEach(function(el){
+          try{ new QRCode(el, {text: el.getAttribute('data-qr-text'), width:90, height:90, correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+        });
+        setTimeout(function(){ window.print(); }, 350);
+      });
+    <\/script>
+  </body></html>`);
+  printWin.document.close();
+}
+
+function printBoxLabels(startNum, count){
+  const printWin = window.open('', '_blank');
+  if(!printWin){ alert('Your browser blocked the print window as a pop-up. Please allow pop-ups for this site and try again.'); return; }
+  const depts = state.departments;
+  const labelsHtml = [];
+  for(let i=0; i<count; i++){
+    const num = startNum + i;
+    labelsHtml.push(`
+    <div class="box-label">
+      <div class="box-num">BOX ${num}</div>
+      <table class="box-table">
+        <tr><th>Department</th><th>${tierName('S')}</th><th>${tierName('M')}</th><th>${tierName('L')}</th></tr>
+        ${depts.map(d=>`<tr><td>${d.name}</td><td class="blank"></td><td class="blank"></td><td class="blank"></td></tr>`).join('')}
+      </table>
+    </div>`);
+  }
+  printWin.document.open();
+  printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Toy Drive Box Labels</title><style>
+    *{box-sizing:border-box;}
+    body{margin:0; font-family:Arial,Helvetica,sans-serif;}
+    .box-label{page-break-after:always; padding:0.4in; border:2px solid #333; margin:0.15in; border-radius:6px;}
+    .box-num{font-size:32px; font-weight:800; text-align:center; margin-bottom:0.2in; letter-spacing:1px;}
+    .box-table{width:100%; border-collapse:collapse; font-size:13px;}
+    .box-table th{border:1px solid #999; padding:6px; background:#f2f2f2; text-align:left;}
+    .box-table td{border:1px solid #999; padding:8px 6px; height:0.32in;}
+    .box-table td.blank{width:0.6in;}
+    @page{ size:letter; margin:0.3in; }
+  </style></head><body>
+    ${labelsHtml.join('')}
+    <script>window.addEventListener('load', function(){ setTimeout(function(){ window.print(); }, 250); });<\/script>
+  </body></html>`);
+  printWin.document.close();
+}
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+function renderDashboard(){
+  const inv = state.inventory;
+  const totalUnits = inv.reduce((s,i)=>s+(i.qtyAvailable||0),0);
+  const totalValue = inv.reduce((s,i)=>s+(i.qtyAvailable||0)*(i.unitValue||0),0);
+  const totalGiven = state.log.length;
+  const familiesServed = state.families.filter(f=>f.status==='COMPLETE').length;
+  const familiesInProgress = state.families.filter(f=>f.status!=='COMPLETE').length;
+  return `
+  <div class="stat-grid" style="margin-bottom:14px;">
+    <div class="stat-box"><div class="num">${totalUnits}</div><div class="lab">Toys available</div></div>
+    <div class="stat-box"><div class="num">${money(totalValue)}</div><div class="lab">Available value</div></div>
+    <div class="stat-box"><div class="num">${totalGiven}</div><div class="lab">Toys given out</div></div>
+    <div class="stat-box"><div class="num">${familiesServed}/${familiesServed+familiesInProgress}</div><div class="lab">Families done</div></div>
+    <div class="stat-box" style="grid-column:1/-1;"><div class="num">${state.children.length}</div><div class="lab">Kids registered across all families</div></div>
+  </div>
+  <div class="card"><h2>By department</h2>
+    <table class="dept-table"><tr><th>Department</th><th>${tierName('S')}</th><th>${tierName('M')}</th><th>${tierName('L')}</th></tr>
+      ${state.departments.map(d=>{
+        const s = inv.filter(i=>i.dept===d.code&&i.tier==='S').reduce((a,i)=>a+(i.qtyAvailable||0),0);
+        const m = inv.filter(i=>i.dept===d.code&&i.tier==='M').reduce((a,i)=>a+(i.qtyAvailable||0),0);
+        const l = inv.filter(i=>i.dept===d.code&&i.tier==='L').reduce((a,i)=>a+(i.qtyAvailable||0),0);
+        return `<tr><td>${d.name}</td><td>${s}</td><td>${m}</td><td>${l}</td></tr>`;
+      }).join('')}
+    </table>
+  </div>
+  <div class="card"><h2>Children by age &amp; gender</h2>
+    ${renderChildrenByAgeGender()}
+  </div>
+  <div class="card"><h2>Recent activity</h2>
+    ${state.log.length===0 ? `<div class="empty-state" style="padding:14px;">Nothing scanned yet.</div>` :
+      state.log.slice(-8).reverse().map(l=>`<div class="item-row"><span class="pill pill-${l.tier}">${tierAbbrev(l.tier)}</span><div class="info"><div class="desc">${l.description}</div><div class="meta">to ${l.familyId} · ${fmtTime(l.timestamp)}${l.volunteer?(' · '+l.volunteer):''}</div></div></div>`).join('')}
+  </div>`;
+}
+function renderChildrenByAgeGender(){
+  if(state.children.length===0) return `<div class="empty-state" style="padding:14px;">No kids registered yet.</div>`;
+  const ages = Array.from(new Set(state.children.map(c=>c.age===''?'Unspecified':c.age)))
+    .sort((a,b)=>{ if(a==='Unspecified') return 1; if(b==='Unspecified') return -1; return Number(a)-Number(b); });
+  const countFor = (age, gender) => state.children.filter(c=>(c.age===''?'Unspecified':c.age)===age && c.gender===gender).length;
+  const totalBoys = state.children.filter(c=>c.gender==='Boy').length;
+  const totalGirls = state.children.filter(c=>c.gender==='Girl').length;
+  const totalUnspec = state.children.filter(c=>c.gender!=='Boy' && c.gender!=='Girl').length;
+  return `
+    <table class="dept-table">
+      <tr><th>Age</th><th>Boys</th><th>Girls</th><th>Not specified</th></tr>
+      ${ages.map(age=>`<tr><td>${age}</td><td>${countFor(age,'Boy')}</td><td>${countFor(age,'Girl')}</td><td>${state.children.filter(c=>(c.age===''?'Unspecified':c.age)===age && c.gender!=='Boy' && c.gender!=='Girl').length}</td></tr>`).join('')}
+      <tr style="font-weight:800;"><td>Total</td><td>${totalBoys}</td><td>${totalGirls}</td><td>${totalUnspec}</td></tr>
+    </table>`;
+}
+
+/* =========================================================
+   SETTINGS
+   ========================================================= */
+function renderSettings(){
+  return `
+  <div class="card"><h2>Your name</h2>
+    <div class="btn-row"><input type="text" id="set-vol-name" value="${volunteerName}"><button class="btn btn-secondary btn-sm" id="set-vol-save">Save</button></div>
+  </div>
+  <div class="card"><h2>Departments</h2>
+    ${state.departments.map((d,idx)=>`<div class="btn-row" style="margin-bottom:8px;"><input type="text" data-dept-code="${idx}" value="${d.code}" style="max-width:90px;"><input type="text" data-dept-name="${idx}" value="${d.name}"><button class="btn btn-secondary btn-sm" data-dept-remove="${idx}">✕</button></div>`).join('')}
+    <button class="btn btn-ghost" id="add-dept-btn">+ Add department</button>
+  </div>
+  <div class="card"><h2>Size / value tiers</h2>
+    ${state.tiers.map((t,idx)=>`<div class="btn-row" style="margin-bottom:8px;align-items:center;"><span class="pill pill-${t.code}" style="min-width:30px;">${t.code}</span><input type="text" data-tier-name="${idx}" value="${t.name}"><input type="number" step="0.01" data-tier-min="${idx}" value="${t.min}" placeholder="Min $" style="max-width:80px;"><input type="number" step="0.01" data-tier-max="${idx}" value="${t.max==null?'':t.max}" placeholder="Max $" style="max-width:110px;"></div>`).join('')}
+  </div>
+  <div class="card"><h2>Default family allowance</h2>
+    <div class="grid-3">
+      <label class="field"><span class="lab">${tierName('L')}</span><input type="number" id="def-l" value="${state.defaultAllowance.L||0}"></label>
+      <label class="field"><span class="lab">${tierName('M')}</span><input type="number" id="def-m" value="${state.defaultAllowance.M||0}"></label>
+      <label class="field"><span class="lab">${tierName('S')}</span><input type="number" id="def-s" value="${state.defaultAllowance.S||0}"></label>
+    </div>
+  </div>
+  <div class="card"><button class="btn btn-primary" id="settings-save-all">Save all settings</button></div>
+  <div class="card">
+    <h2>Connection</h2>
+    <div style="font-size:12px;color:var(--ink-soft);word-break:break-all;">${API_URL}</div>
+    <button class="btn btn-secondary" id="reconnect-btn" style="margin-top:10px;">Change connected sheet</button>
+  </div>
+  <div class="card">
+    <h2 style="color:var(--danger);">Danger zone</h2>
+    <button class="btn btn-secondary" id="export-data-btn">Export all data (JSON)</button>
+    <button class="btn btn-ghost" id="wipe-data-btn" style="margin-top:10px;color:var(--danger);">Erase all inventory &amp; checkout data</button>
+  </div>`;
+}
+function attachSettingsHandlers(){
+  const volSave = document.getElementById('set-vol-save');
+  if(volSave) volSave.addEventListener('click', ()=>{ volunteerName = document.getElementById('set-vol-name').value.trim(); localStorage.setItem('toydrive_volunteer_name', volunteerName); alert('Saved.'); });
+  const addDept = document.getElementById('add-dept-btn'); if(addDept) addDept.addEventListener('click', ()=>{ state.departments.push({code:'NEW',name:'New department'}); render(); });
+  document.querySelectorAll('[data-dept-remove]').forEach(b=>b.addEventListener('click', ()=>{ state.departments.splice(parseInt(b.dataset.deptRemove),1); render(); }));
+  const saveAll = document.getElementById('settings-save-all');
+  if(saveAll) saveAll.addEventListener('click', async ()=>{
+    document.querySelectorAll('[data-dept-code]').forEach(inp=>{ state.departments[parseInt(inp.dataset.deptCode)].code = inp.value.trim(); });
+    document.querySelectorAll('[data-dept-name]').forEach(inp=>{ state.departments[parseInt(inp.dataset.deptName)].name = inp.value.trim(); });
+    document.querySelectorAll('[data-tier-name]').forEach(inp=>{ state.tiers[parseInt(inp.dataset.tierName)].name = inp.value.trim(); });
+    document.querySelectorAll('[data-tier-min]').forEach(inp=>{ state.tiers[parseInt(inp.dataset.tierMin)].min = parseFloat(inp.value)||0; });
+    document.querySelectorAll('[data-tier-max]').forEach(inp=>{ const v=inp.value.trim(); state.tiers[parseInt(inp.dataset.tierMax)].max = v===''?null:parseFloat(v); });
+    state.tiers.forEach(t=>{ t.defaultAllowance = t.code==='L'?parseFloat(document.getElementById('def-l').value)||0 : t.code==='M'?parseFloat(document.getElementById('def-m').value)||0 : parseFloat(document.getElementById('def-s').value)||0; });
+    state.defaultAllowance = { L: parseFloat(document.getElementById('def-l').value)||0, M: parseFloat(document.getElementById('def-m').value)||0, S: parseFloat(document.getElementById('def-s').value)||0 };
+    try{ await api('saveSettings', { departments: state.departments, tiers: state.tiers }); alert('Settings saved for every volunteer.'); await refreshAll(true); render(); }
+    catch(e){ alert('Could not save: ' + e.message); }
+  });
+  const reconnectBtn = document.getElementById('reconnect-btn');
+  if(reconnectBtn) reconnectBtn.addEventListener('click', ()=>{
+    if(!confirm('Connect this device to a different sheet?')) return;
+    if(pollTimer) clearInterval(pollTimer);
+    document.getElementById('modal-root').innerHTML = '';
+    renderSetupScreen();
+  });
+  const exportBtn = document.getElementById('export-data-btn');
+  if(exportBtn) exportBtn.addEventListener('click', ()=>{
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'toy-drive-export-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  });
+  const wipeBtn = document.getElementById('wipe-data-btn');
+  if(wipeBtn) wipeBtn.addEventListener('click', async ()=>{
+    if(!confirm('This erases inventory, families, and the checkout log for EVERYONE. Are you sure?')) return;
+    if(!confirm('Really sure? This cannot be undone.')) return;
+    try{ await api('wipeData'); await refreshAll(true); render(); }catch(e){ alert('Could not erase: ' + e.message); }
+  });
+}
+
+/* =========================================================
+   VIEW HANDLER DISPATCH
+   ========================================================= */
+function attachViewHandlers(){
+  if(currentView==='intake') attachIntakeHandlers();
+  else if(currentView==='checkout') attachCheckoutHandlers();
+  else if(currentView==='inventory') attachInventoryHandlers();
+  else if(currentView==='labels') attachLabelsHandlers();
+  else if(currentView==='settings') attachSettingsHandlers();
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+async function initApp(){
+  renderShell();
+  await refreshAll(false);
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(()=>{
+    const active = document.activeElement;
+    const isTyping = active && (active.tagName==='INPUT' || active.tagName==='TEXTAREA');
+    if(document.getElementById('modal-root').children.length===0 && !isTyping && currentView!=='settings') refreshAll(true);
+  }, 6000);
+}
+
+(async function boot(){
+  if(!API_URL){ renderSetupScreen(); return; }
+  try{
+    await api('ping');
+    initApp();
+  }catch(e){
+    renderSetupScreen('Saved connection failed: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

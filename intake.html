@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Toy Drive — Intake</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{
+    --ink:#1C2333; --ink-soft:#4A5568; --bg:#F2F4F3; --card:#FFFFFF; --line:#DCE1DF;
+    --brand:#B23A48; --brand-dark:#8E2C38; --brand-tint:#F6E3E4;
+    --ok:#2F8F5B; --warn:#C9971F; --danger:#B23A48;
+    --tier-S:#C13B3B; --tier-S-tint:#F8E3E3; --tier-M:#C9971F; --tier-M-tint:#FBF0D9; --tier-L:#256D3B; --tier-L-tint:#E1EFE5;
+    --radius:14px; --shadow:0 1px 2px rgba(28,35,51,0.06), 0 4px 14px rgba(28,35,51,0.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; padding-bottom:24px; min-height:100vh;}
+  header.app-head{background:var(--ink); color:#fff; padding:16px 18px 14px; position:sticky; top:0; z-index:20; box-shadow:0 2px 10px rgba(0,0,0,0.15); overflow:hidden;}
+  header.app-head::after{content:""; display:block; height:6px; margin:14px -18px -14px; background:repeating-linear-gradient(-45deg, var(--tier-S) 0 12px, #fff 12px 24px, var(--tier-L) 24px 36px, #fff 36px 48px);}
+  header.app-head .title-row{display:flex; align-items:center; gap:10px;}
+  header.app-head .tag-icon{width:26px;height:26px;border-radius:50%; background:var(--brand); position:relative; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:15px;}
+  header.app-head h1{font-size:17px; margin:0; font-weight:700;}
+  header.app-head .sub{font-size:12px; color:#C8CDD8; margin-top:2px;}
+  header.app-head .sync{margin-left:auto; font-size:11px; color:#C8CDD8; text-align:right; line-height:1.3; cursor:pointer;}
+  header.app-head .sync .dot{display:inline-block; width:7px;height:7px;border-radius:50%; background:var(--ok); margin-right:4px;}
+  header.app-head .sync .dot.bad{background:var(--danger);}
+  header.app-head .flake{position:absolute; color:rgba(255,255,255,0.4); font-size:13px; animation:twinkle 3.5s ease-in-out infinite; pointer-events:none;}
+  @keyframes twinkle{ 0%,100%{opacity:0.15;} 50%{opacity:0.8;} }
+  main{padding:14px; max-width:640px; margin:0 auto;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px; box-shadow:var(--shadow);}
+  .card h2{margin:0 0 12px; font-size:15px; font-weight:700;}
+  label.field{display:block; margin-bottom:12px;}
+  label.field .lab{display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.4px;}
+  input[type=text], input[type=number]{width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:16px; background:#fff; color:var(--ink); font-family:inherit;}
+  input:focus{outline:none; border-color:var(--brand);}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:12px 16px; border-radius:10px; border:none; font-size:15px; font-weight:700; cursor:pointer; width:100%;}
+  .btn-primary{background:var(--brand); color:#fff;}
+  .btn-primary:active{background:var(--brand-dark);}
+  .btn-secondary{background:#fff; color:var(--ink); border:1.5px solid var(--line);}
+  .btn-ghost{background:transparent; color:var(--brand); font-weight:700;}
+  .btn-sm{width:auto; padding:8px 12px; font-size:13px;}
+  .btn-row{display:flex; gap:10px;}
+  .grid-3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;}
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .dept-btn, .tier-btn{border:2px solid var(--line); background:#fff; border-radius:12px; padding:10px 6px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--ink); text-align:center; line-height:1.25;}
+  .dept-btn.selected{border-color:var(--brand); background:var(--brand-tint); color:var(--brand-dark);}
+  .tier-btn{font-size:14px;}
+  .tier-btn[data-tier="S"]{border-color:var(--tier-S); color:var(--tier-S);}
+  .tier-btn[data-tier="M"]{border-color:var(--tier-M); color:var(--tier-M);}
+  .tier-btn[data-tier="L"]{border-color:var(--tier-L); color:var(--tier-L);}
+  .tier-btn[data-tier="S"].selected{background:var(--tier-S-tint);}
+  .tier-btn[data-tier="M"].selected{background:var(--tier-M-tint);}
+  .tier-btn[data-tier="L"].selected{background:var(--tier-L-tint);}
+  h4.section-lab{font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--ink-soft); margin:16px 0 8px;}
+  .modal-backdrop{position:fixed; inset:0; background:rgba(15,18,26,0.72); z-index:100; display:flex; align-items:flex-end; justify-content:center;}
+  .modal-backdrop.center{align-items:center; padding:16px;}
+  .modal{background:#fff; width:100%; max-width:640px; border-radius:18px 18px 0 0; padding:18px; max-height:92vh; overflow-y:auto;}
+  .modal-backdrop.center .modal{border-radius:16px;}
+  .modal .modal-head{display:flex; align-items:center; margin-bottom:14px;}
+  .modal .modal-head h3{margin:0; font-size:16px; flex:1;}
+  .modal .close-x{background:none; border:none; font-size:22px; color:var(--ink-soft); cursor:pointer; padding:4px;}
+  #scanner-video{width:100%; border-radius:12px; background:#000; max-height:52vh; object-fit:cover;}
+  #scanner-container{height:52vh; max-height:420px;}
+  #scanner-container video, #scanner-container canvas{position:absolute !important; top:0; left:0; width:100% !important; height:100% !important; object-fit:cover;}
+  .scan-mode-toggle{display:flex; gap:8px; margin:10px 0;}
+  .scan-mode-toggle button{flex:1; padding:9px; border-radius:9px; border:1.5px solid var(--line); background:#fff; font-weight:700; font-size:13px;}
+  .scan-mode-toggle button.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+  .scan-status{text-align:center; font-size:13px; color:var(--ink-soft); margin:8px 0;}
+  .banner{padding:11px 13px; border-radius:10px; font-size:13px; font-weight:600; margin-bottom:12px;}
+  .banner-ok{background:#E1F1EC; color:#1E6B4B;}
+  .setup-screen{max-width:480px; margin:60px auto; padding:0 18px;}
+  .setup-screen .card{text-align:left;}
+  .status-line{font-size:12px; margin-top:8px;}
+  .status-ok{color:var(--ok);}
+  .status-bad{color:var(--danger);}
+  #print-area{display:none;}
+</style>
+</head>
+<body>
+
+<div id="app-root"></div>
+<div id="modal-root"></div>
+<div id="print-area"></div>
+
+<script>
+/* =========================================================
+   API CONFIG — shared with the main app via the same origin's localStorage
+   ========================================================= */
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzAz0ZlwSJA7t_s14tmco4PpyEKxAuYe8jkQKORTBaHMwIKvilhNXSzmFXNJFZz5O8M/exec';
+let API_URL = localStorage.getItem('toydrive_api_url') || DEFAULT_API_URL;
+let volunteerName = localStorage.getItem('toydrive_volunteer_name') || '';
+
+let state = { departments:[], tiers:[], defaultAllowance:{}, inventory:[], families:[], children:[], log:[], boxes:[] };
+
+function tierName(code){ const t=state.tiers.find(t=>t.code===code); return t?t.name:code; }
+function tierColorHex(code){ return {S:'#C13B3B',M:'#C9971F',L:'#256D3B'}[code] || '#555'; }
+function deptName(code){ const d=state.departments.find(d=>d.code===code); return d?d.name:code; }
+function money(n){ return '$'+(Number(n)||0).toFixed(2); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+/* =========================================================
+   API LAYER
+   ========================================================= */
+async function api(action, payload){
+  if(!API_URL){ throw new Error('Not connected yet.'); }
+  const url = API_URL + '?action=' + encodeURIComponent(action) + (payload ? '&payload=' + encodeURIComponent(JSON.stringify(payload)) : '');
+  const res = await fetch(url);
+  const json = await res.json();
+  if(!json.ok) throw new Error(json.error || 'Unknown error');
+  return json.data;
+}
+function setSync(status){
+  const el = document.getElementById('sync-indicator');
+  if(!el) return;
+  if(status==='ok') el.innerHTML = '<span class="dot"></span>Synced';
+  else if(status==='syncing') el.innerHTML = '<span class="dot"></span>Syncing…';
+  else el.innerHTML = '<span class="dot bad"></span>Sync error — tap to retry';
+}
+let pollTimer = null;
+async function refreshAll(silent){
+  if(!silent) setSync('syncing');
+  try{
+    const data = await api('getAll');
+    state = data;
+    setSync('ok');
+    render();
+  }catch(e){
+    console.error(e);
+    setSync('bad');
+  }
+}
+
+/* =========================================================
+   SETUP SCREEN
+   ========================================================= */
+function renderSetupScreen(prefillError){
+  document.getElementById('app-root').innerHTML = `
+  <div class="setup-screen">
+    <div class="card">
+      <h2>Connect to your Google Sheet</h2>
+      <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">Paste the same Apps Script Web App URL used for the main Toy Drive app.</p>
+      ${prefillError ? `<div class="banner" style="background:#FBEEDA;color:#8A5A11;">${prefillError}</div>` : ''}
+      <label class="field"><span class="lab">Web app URL</span>
+        <input type="text" id="setup-url" placeholder="https://script.google.com/macros/s/.../exec" value="${API_URL}">
+      </label>
+      <button class="btn btn-primary" id="setup-connect">Connect</button>
+      <div class="status-line" id="setup-status"></div>
+    </div>
+  </div>`;
+  document.getElementById('setup-connect').addEventListener('click', async ()=>{
+    const url = document.getElementById('setup-url').value.trim();
+    const statusEl = document.getElementById('setup-status');
+    if(!url){ statusEl.textContent = 'Paste a URL first.'; statusEl.className='status-line status-bad'; return; }
+    statusEl.textContent = 'Connecting…'; statusEl.className='status-line';
+    API_URL = url;
+    try{
+      const test = await api('ping');
+      localStorage.setItem('toydrive_api_url', url);
+      statusEl.textContent = 'Connected to "'+test.sheet+'". Loading…';
+      statusEl.className='status-line status-ok';
+      setTimeout(initApp, 400);
+    }catch(e){
+      statusEl.textContent = 'Could not connect: ' + e.message;
+      statusEl.className='status-line status-bad';
+    }
+  });
+}
+
+/* =========================================================
+   SHELL — no bottom nav, this page only does Intake
+   ========================================================= */
+function renderShell(){
+  document.getElementById('app-root').innerHTML = `
+  <header class="app-head">
+    ${generateFlakeSpans()}
+    <div class="title-row">
+      <div class="tag-icon">🎁</div>
+      <div><h1>Toy Intake</h1><div class="sub">Scan each sticker as toys come in</div></div>
+      <div class="sync" id="sync-indicator"><span class="dot"></span>Synced</div>
+    </div>
+  </header>
+  <main id="main"></main>`;
+  document.getElementById('sync-indicator').addEventListener('click', ()=>refreshAll(false));
+}
+function generateFlakeSpans(){
+  const chars = ['❄','✦','❅'];
+  let html = '';
+  for(let i=0; i<7; i++){
+    const left = Math.round(Math.random()*94)+2;
+    const top = Math.round(Math.random()*70)+5;
+    const delay = (Math.random()*3.5).toFixed(1);
+    const size = 10 + Math.round(Math.random()*8);
+    const ch = chars[i % chars.length];
+    html += `<span class="flake" style="left:${left}%; top:${top}%; font-size:${size}px; animation-delay:${delay}s;">${ch}</span>`;
+  }
+  return html;
+}
+
+/* =========================================================
+   MODALS
+   ========================================================= */
+function openModal(html, {center=false}={}){
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `<div class="modal-backdrop ${center?'center':''}" id="active-modal-backdrop"><div class="modal">${html}</div></div>`;
+  root.querySelector('.modal-backdrop').addEventListener('click', (e)=>{ if(e.target.id==='active-modal-backdrop') closeModal(); });
+}
+function closeModal(){ document.getElementById('modal-root').innerHTML = ''; stopAllScanners(); }
+
+/* =========================================================
+   SCANNING (same engine as the main app)
+   ========================================================= */
+let scanMode = 'barcode';
+let cameraStream = null, scanRAF = null, scanResultCallback = null, lastBarcodeAttempt = 0, scannerContinuous = false;
+
+function openScanner(onResult, opts={}){
+  scanResultCallback = onResult;
+  scannerContinuous = !!opts.continuous;
+  const title = opts.title || 'Scan';
+  const defaultMode = opts.defaultMode || 'qr';
+  openModal(`
+    <div class="modal-head"><h3>${title}</h3><button class="close-x" id="scan-close">&times;</button></div>
+    <div class="scan-mode-toggle">
+      <button id="mode-barcode">📦 Barcode (UPC)</button>
+      <button id="mode-qr">▣ QR code</button>
+    </div>
+    <div id="scanner-container" style="position:relative; width:100%; height:52vh; max-height:420px; background:#000; border-radius:12px; overflow:hidden;">
+      <video id="scanner-video" autoplay playsinline muted style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover;"></video>
+      <canvas id="scanner-canvas" style="display:none;"></canvas>
+      <div id="scan-flash" style="position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; gap:4px; text-align:center; padding:16px; pointer-events:none;"></div>
+    </div>
+    <div class="scan-status" id="scan-status">Starting camera…</div>
+    <label class="field" style="margin-top:10px;"><span class="lab">Or type the code manually</span>
+      <input type="text" id="manual-code-input" placeholder="Type code, then press Enter">
+    </label>
+    <button class="btn btn-secondary" id="manual-code-submit">Use typed code</button>
+    ${scannerContinuous ? `<button class="btn btn-primary" id="scan-done-btn" style="margin-top:10px;">Done scanning</button>` : ``}
+  `);
+  document.getElementById('scan-close').addEventListener('click', closeModal);
+  document.getElementById('mode-barcode').addEventListener('click', ()=>switchScanMode('barcode'));
+  document.getElementById('mode-qr').addEventListener('click', ()=>switchScanMode('qr'));
+  document.getElementById('manual-code-submit').addEventListener('click', submitManualCode);
+  document.getElementById('manual-code-input').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitManualCode(); });
+  const doneBtn = document.getElementById('scan-done-btn');
+  if(doneBtn) doneBtn.addEventListener('click', closeModal);
+  scanMode = defaultMode;
+  document.getElementById('mode-barcode').classList.toggle('active', scanMode==='barcode');
+  document.getElementById('mode-qr').classList.toggle('active', scanMode==='qr');
+  if(scanMode==='barcode') startBarcodeScanner(); else startQrScanner();
+}
+function submitManualCode(){
+  const v = document.getElementById('manual-code-input').value.trim();
+  if(!v) return;
+  if(scannerContinuous){
+    document.getElementById('manual-code-input').value = '';
+    if(scanResultCallback) scanResultCallback(v, 'manual');
+  } else {
+    const cb = scanResultCallback; closeModal(); if(cb) cb(v, 'manual');
+  }
+}
+function switchScanMode(mode){
+  if(mode===scanMode) return;
+  stopAllScanners(); scanMode = mode;
+  document.getElementById('mode-barcode').classList.toggle('active', mode==='barcode');
+  document.getElementById('mode-qr').classList.toggle('active', mode==='qr');
+  if(mode==='barcode') startBarcodeScanner(); else startQrScanner();
+}
+function stopAllScanners(){
+  if(scanRAF) cancelAnimationFrame(scanRAF); scanRAF = null;
+  if(cameraStream){ cameraStream.getTracks().forEach(t=>t.stop()); cameraStream = null; }
+}
+function startCamera(onFrame){
+  const video = document.getElementById('scanner-video');
+  const canvas = document.getElementById('scanner-canvas');
+  const ctx = canvas.getContext('2d', {willReadFrequently:true});
+  const statusEl = document.getElementById('scan-status');
+  navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:640}, height:{ideal:480} } })
+    .then(stream=>{
+      cameraStream = stream;
+      video.srcObject = stream;
+      video.muted = true;
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('muted', 'true');
+      const playPromise = video.play();
+      if(playPromise && playPromise.catch) playPromise.catch(()=>{});
+      const tick = ()=>{
+        if(video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth){
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          onFrame(canvas, ctx);
+        }
+        scanRAF = requestAnimationFrame(tick);
+      };
+      scanRAF = requestAnimationFrame(tick);
+    })
+    .catch(e=>{ console.error(e); if(statusEl) statusEl.textContent = 'Camera permission denied — type the code below.'; });
+}
+function startBarcodeScanner(){
+  const statusEl = document.getElementById('scan-status');
+  if(typeof Quagga === 'undefined'){ if(statusEl) statusEl.textContent = 'Barcode scanner failed to load — type the code below.'; return; }
+  if(statusEl) statusEl.textContent = 'Point the camera at the barcode…';
+  startCamera((canvas)=>{
+    const now = Date.now();
+    if(now - lastBarcodeAttempt < 300) return;
+    lastBarcodeAttempt = now;
+    try{
+      Quagga.decodeSingle({
+        src: canvas.toDataURL('image/jpeg', 0.75),
+        numOfWorkers: 0,
+        inputStream: { size: canvas.width },
+        decoder: { readers:['upc_reader','upc_e_reader','ean_reader','ean_8_reader','code_128_reader'] },
+        locate: true
+      }, function(result){
+        if(result && result.codeResult && result.codeResult.code){
+          const code = result.codeResult.code;
+          beep(); vibrate();
+          if(scannerContinuous){ if(scanResultCallback) scanResultCallback(code, 'barcode'); }
+          else { const cb = scanResultCallback; closeModal(); if(cb) cb(code, 'barcode'); }
+        }
+      });
+    }catch(e){ console.error(e); }
+  });
+}
+function startQrScanner(){
+  const statusEl = document.getElementById('scan-status');
+  if(typeof jsQR === 'undefined'){ if(statusEl) statusEl.textContent = 'QR scanner failed to load — type the code below.'; return; }
+  if(statusEl) statusEl.textContent = 'Point the camera at the QR code…';
+  startCamera((canvas, ctx)=>{
+    const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const result = jsQR(imgData.data, imgData.width, imgData.height);
+    if(result && result.data){
+      beep(); vibrate();
+      if(scannerContinuous){ if(scanResultCallback) scanResultCallback(result.data, 'qr'); }
+      else { const cb = scanResultCallback; closeModal(); if(cb) cb(result.data, 'qr'); }
+    }
+  });
+}
+function beep(){ try{ const ctxA = new (window.AudioContext||window.webkitAudioContext)(); const o=ctxA.createOscillator(),g=ctxA.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(ctxA.destination); g.gain.setValueAtTime(0.15, ctxA.currentTime); o.start(); o.stop(ctxA.currentTime+0.09); }catch(e){} }
+function vibrate(){ try{ navigator.vibrate && navigator.vibrate(60); }catch(e){} }
+
+let scanFlashTimer = null;
+function showScanFlash(mainText, subText, type){
+  const el = document.getElementById('scan-flash');
+  if(!el) return;
+  const colors = {
+    ok: 'rgba(47,143,91,0.92)',
+    warn: 'rgba(201,151,31,0.92)',
+    error: 'rgba(178,58,72,0.92)'
+  };
+  el.style.background = colors[type] || colors.ok;
+  el.innerHTML = `<div style="font-size:34px; font-weight:800; color:#fff; line-height:1.1;">${mainText}</div>${subText ? `<div style="font-size:15px; font-weight:600; color:#fff; opacity:0.95;">${subText}</div>` : ''}`;
+  el.style.display = 'flex';
+  if(scanFlashTimer) clearTimeout(scanFlashTimer);
+  scanFlashTimer = setTimeout(()=>{ el.style.display = 'none'; }, 1100);
+}
+
+function parseCategoryCode(raw){
+  const code = String(raw||'').trim().toUpperCase();
+  for(const d of state.departments){
+    const prefix = d.code.toUpperCase() + '-';
+    if(code.startsWith(prefix)){
+      const tierPart = code.slice(prefix.length);
+      const tier = state.tiers.find(t=>t.code.toUpperCase()===tierPart.toUpperCase());
+      if(tier) return { dept: d.code, tier: tier.code };
+    }
+  }
+  return null;
+}
+
+/* =========================================================
+   INTAKE — the only screen this page has
+   ========================================================= */
+function render(){
+  const main = document.getElementById('main');
+  if(!main) return;
+  main.innerHTML = renderIntake();
+  attachIntakeHandlers();
+}
+
+let intakeDraft = { dept:null, tier:null, code:'', hasUPC:true, description:'', unitValue:'', qty:1, location:'' };
+let showDetailedIntake = false;
+function renderIntake(){
+  const depts = state.departments, tiers = state.tiers;
+  return `
+  <div class="card">
+    <h2>Add toys</h2>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">Put the size/department sticker on the toy first, then scan that same sticker here — each scan adds one to that category's count.</p>
+    <button class="btn btn-primary" id="quick-add-scan-btn">▣ Scan a toy sticker</button>
+  </div>
+  <div class="card">
+    <button class="btn btn-ghost" id="toggle-detailed-intake" style="width:auto;padding:0;">${showDetailedIntake?'Hide':'+ Add one item with full details'}</button>
+    ${showDetailedIntake ? `
+    <div style="margin-top:14px;">
+      <h4 class="section-lab" style="margin-top:0;">1. Department</h4>
+      <div class="grid-3">${depts.map(d=>`<button class="dept-btn ${intakeDraft.dept===d.code?'selected':''}" data-dept="${d.code}">${d.name}</button>`).join('')}</div>
+      <h4 class="section-lab">2. Size / value tier</h4>
+      <div class="grid-3">${tiers.map(t=>`<button class="tier-btn ${intakeDraft.tier===t.code?'selected':''}" data-tier="${t.code}">${t.name}<br><span style="font-weight:500;font-size:11px;">${t.max?money(t.min)+'–'+money(t.max):money(t.min)+'+'}</span></button>`).join('')}</div>
+      <h4 class="section-lab">3. Toy details</h4>
+      <label class="field"><span class="lab">Barcode / UPC</span>
+        <div class="btn-row"><input type="text" id="intake-code" placeholder="Scan or type…" value="${intakeDraft.code}"><button class="btn btn-secondary btn-sm" id="intake-scan-btn">▣ Scan</button></div>
+      </label>
+      <label class="field" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="intake-no-upc" style="width:18px;height:18px;" ${intakeDraft.hasUPC?'':'checked'}>
+        <span style="font-size:13px;">No UPC on this toy (generate an internal code)</span>
+      </label>
+      <label class="field"><span class="lab">Description</span><input type="text" id="intake-desc" placeholder="e.g. Lego dump truck" value="${intakeDraft.description}"></label>
+      <div class="grid-2">
+        <label class="field"><span class="lab">Unit value ($)</span><input type="number" step="0.01" id="intake-value" value="${intakeDraft.unitValue}"></label>
+        <label class="field"><span class="lab">Quantity</span><input type="number" min="1" id="intake-qty" value="${intakeDraft.qty}"></label>
+      </div>
+      <label class="field"><span class="lab">Box / location (optional)</span><input type="text" id="intake-loc" placeholder="e.g. B6-9 Box 01" value="${intakeDraft.location}"></label>
+      <button class="btn btn-primary" id="intake-save-btn">Add to inventory</button>
+    </div>` : ``}
+  </div>`;
+}
+function attachIntakeHandlers(){
+  const quickBtn = document.getElementById('quick-add-scan-btn');
+  if(quickBtn) quickBtn.addEventListener('click', openQuickAddScanner);
+  const toggleBtn = document.getElementById('toggle-detailed-intake');
+  if(toggleBtn) toggleBtn.addEventListener('click', ()=>{ showDetailedIntake = !showDetailedIntake; render(); });
+  document.querySelectorAll('.dept-btn').forEach(b=>b.addEventListener('click', ()=>{ intakeDraft.dept=b.dataset.dept; render(); }));
+  document.querySelectorAll('.tier-btn').forEach(b=>b.addEventListener('click', ()=>{ intakeDraft.tier=b.dataset.tier; render(); }));
+  const codeInput = document.getElementById('intake-code'); if(codeInput) codeInput.addEventListener('input', e=>intakeDraft.code=e.target.value);
+  const noUpc = document.getElementById('intake-no-upc'); if(noUpc) noUpc.addEventListener('change', e=>{ intakeDraft.hasUPC = !e.target.checked; render(); });
+  const scanBtn = document.getElementById('intake-scan-btn'); if(scanBtn) scanBtn.addEventListener('click', ()=>openScanner(handleIntakeCodeScanned, {title:'Scan the toy barcode', defaultMode:'barcode'}));
+  const desc = document.getElementById('intake-desc'); if(desc) desc.addEventListener('input', e=>intakeDraft.description=e.target.value);
+  const val = document.getElementById('intake-value'); if(val) val.addEventListener('input', e=>intakeDraft.unitValue=e.target.value);
+  const qty = document.getElementById('intake-qty'); if(qty) qty.addEventListener('input', e=>intakeDraft.qty=e.target.value);
+  const loc = document.getElementById('intake-loc'); if(loc) loc.addEventListener('input', e=>intakeDraft.location=e.target.value);
+  const saveBtn = document.getElementById('intake-save-btn'); if(saveBtn) saveBtn.addEventListener('click', saveIntakeItem);
+}
+function handleIntakeCodeScanned(code){ intakeDraft.code = code; render(); }
+
+/* ---- Quick Add: scan the department/size sticker already on the toy ---- */
+let lastQuickAddCode = null, lastQuickAddTime = 0;
+function openQuickAddScanner(){
+  openScanner(handleQuickAddScan, {title:'Scan a toy sticker — tap Done when finished', continuous:true, defaultMode:'qr'});
+}
+function tierMidValue(tierCode){
+  const t = state.tiers.find(t=>t.code===tierCode);
+  if(!t) return 0;
+  return t.max!=null ? (Number(t.min)+Number(t.max))/2 : Number(t.min);
+}
+async function handleQuickAddScan(raw){
+  const statusEl = document.getElementById('scan-status');
+  const parsed = parseCategoryCode(raw);
+  if(!parsed){
+    showScanFlash('✕ Not recognized', 'Try again, or type the code below', 'error');
+    if(statusEl) statusEl.textContent = 'Not a recognized sticker code — try again, or type it below.';
+    return;
+  }
+  const canonicalCode = parsed.dept + '-' + parsed.tier;
+  const now = Date.now();
+  if(lastQuickAddCode === canonicalCode && (now - lastQuickAddTime) < 1500){
+    showScanFlash('Already counted', 'Scan the next toy', 'warn');
+    if(statusEl) statusEl.textContent = `Already counted that one — scan the next toy.`;
+    return;
+  }
+  lastQuickAddCode = canonicalCode; lastQuickAddTime = now;
+  if(statusEl) statusEl.textContent = 'Saving…';
+  try{
+    await api('addItem', {
+      code: canonicalCode, hasUPC: false,
+      description: `${tierName(parsed.tier)} toy — ${deptName(parsed.dept)}`,
+      dept: parsed.dept, tier: parsed.tier,
+      unitValue: tierMidValue(parsed.tier), qty: 1, location: ''
+    });
+    await refreshAll(true);
+    const item = state.inventory.find(i=>i.code===canonicalCode);
+    showScanFlash('✓ Added', `${deptName(parsed.dept)} · ${tierName(parsed.tier)} — now ${item?item.qtyAvailable:'?'}`, 'ok');
+    if(statusEl) statusEl.textContent = `✓ Added — ${deptName(parsed.dept)} · ${tierName(parsed.tier)}. Now ${item?item.qtyAvailable:'?'} in stock. Scan the next toy.`;
+    render();
+  }catch(e){
+    showScanFlash('✕ Could not save', e.message, 'error');
+    if(statusEl) statusEl.textContent = 'Could not save: ' + e.message;
+  }
+}
+
+async function saveIntakeItem(){
+  if(!intakeDraft.dept){ alert('Pick a department first.'); return; }
+  if(!intakeDraft.tier){ alert('Pick a size tier first.'); return; }
+  const desc = (document.getElementById('intake-desc')||{}).value || intakeDraft.description;
+  const unitValue = parseFloat((document.getElementById('intake-value')||{}).value || intakeDraft.unitValue) || 0;
+  const qty = parseInt((document.getElementById('intake-qty')||{}).value || intakeDraft.qty) || 1;
+  const location = (document.getElementById('intake-loc')||{}).value || intakeDraft.location;
+  let code = (document.getElementById('intake-code')||{}).value || intakeDraft.code;
+  const hasUPC = intakeDraft.hasUPC && !!code;
+  if(!code) code = `INT-${intakeDraft.dept}-${intakeDraft.tier}-${Date.now().toString(36).toUpperCase()}`;
+  try{
+    await api('addItem', { code, hasUPC, description: desc||'(no description)', dept: intakeDraft.dept, tier: intakeDraft.tier, unitValue, qty, location });
+    const savedDept = intakeDraft.dept, savedTier = intakeDraft.tier;
+    intakeDraft = { dept: savedDept, tier: savedTier, code:'', hasUPC:true, description:'', unitValue:'', qty:1, location:'' };
+    await refreshAll(true);
+    render();
+    showIntakeConfirm(code);
+  }catch(e){ alert('Could not save: ' + e.message); }
+}
+function showIntakeConfirm(code){
+  openModal(`
+    <div class="modal-head"><h3>Added to inventory</h3><button class="close-x" id="scan-close">&times;</button></div>
+    <div class="banner banner-ok">Code: <b>${code}</b></div>
+    <p style="font-size:13px;color:var(--ink-soft);">Print a sticker now, or keep scanning more toys?</p>
+    <div class="btn-row"><button class="btn btn-secondary" id="ic-keep-scanning">Keep scanning</button><button class="btn btn-primary" id="ic-print-now">Print sticker</button></div>
+  `, {center:true});
+  document.getElementById('scan-close').addEventListener('click', closeModal);
+  document.getElementById('ic-keep-scanning').addEventListener('click', closeModal);
+  document.getElementById('ic-print-now').addEventListener('click', ()=>{ closeModal(); printLabelsForCodes([code]); });
+}
+
+/* =========================================================
+   STICKER PRINTING (for the "print sticker" option after a detailed add)
+   ========================================================= */
+function printLabelsForCodes(codes){
+  const items = codes.map(code=>state.inventory.find(i=>i.code===code)).filter(Boolean);
+  if(items.length===0){ alert('No matching items to print.'); return; }
+  const printWin = window.open('', '_blank');
+  if(!printWin){ alert('Your browser blocked the print window as a pop-up. Please allow pop-ups for this site and try again.'); return; }
+  const stickersHtml = items.map(item => `
+    <div class="sticker">
+      <div class="tier-dot" style="background:${tierColorHex(item.tier)}"></div>
+      <div class="sticker-text">
+        <div class="sticker-tier" style="color:${tierColorHex(item.tier)}">${tierName(item.tier)}</div>
+        <div class="sticker-dept">${deptName(item.dept)}</div>
+      </div>
+      <div class="qr" data-qr-text="${item.code}"></div>
+      <div class="code">${item.code}</div>
+    </div>`).join('');
+  printWin.document.open();
+  printWin.document.write(stickerSheetDoc(stickersHtml));
+  printWin.document.close();
+}
+function stickerSheetDoc(stickersHtml){
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Toy Drive Stickers</title><style>
+    *{box-sizing:border-box;}
+    body{margin:0; font-family:Arial,Helvetica,sans-serif;}
+    .sticker-sheet{display:grid; grid-template-columns:repeat(3, 2.625in); grid-auto-rows:1in; column-gap:0.125in; row-gap:0;}
+    .sticker{border:1px solid #ddd; display:flex; align-items:center; gap:0.08in; padding:0.05in 0.09in; overflow:hidden; position:relative;}
+    .tier-dot{width:0.2in; height:0.2in; border-radius:50%; flex-shrink:0;}
+    .sticker-text{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px;}
+    .sticker-tier{font-size:14px; font-weight:800; text-transform:uppercase; letter-spacing:0.3px; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .sticker-dept{font-size:12.5px; font-weight:700; color:#222; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .qr{width:0.48in; height:0.48in; flex-shrink:0;}
+    .code{font-size:6px; color:#aaa; font-family:monospace; position:absolute; bottom:2px; right:6px;}
+    @page{ size:letter; margin:0.5in 0.1875in; }
+  </style></head><body>
+    <div class="sticker-sheet">${stickersHtml}</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+    <script>
+      window.addEventListener('load', function(){
+        document.querySelectorAll('[data-qr-text]').forEach(function(el){
+          try{ new QRCode(el, {text: el.getAttribute('data-qr-text'), width:52, height:52, correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+        });
+        setTimeout(function(){ window.print(); }, 350);
+      });
+    <\/script>
+  </body></html>`;
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+async function initApp(){
+  renderShell();
+  await refreshAll(false);
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(()=>{
+    const active = document.activeElement;
+    const isTyping = active && (active.tagName==='INPUT' || active.tagName==='TEXTAREA');
+    if(document.getElementById('modal-root').children.length===0 && !isTyping) refreshAll(true);
+  }, 6000);
+}
+
+(async function boot(){
+  if(!API_URL){ renderSetupScreen(); return; }
+  try{
+    await api('ping');
+    initApp();
+  }catch(e){
+    renderSetupScreen('Saved connection failed: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>

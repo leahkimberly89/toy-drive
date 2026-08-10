@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Toy Drive — Shopper Checkout</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<style>
+  :root{
+    --ink:#1C2333; --ink-soft:#4A5568; --bg:#F2F4F3; --card:#FFFFFF; --line:#DCE1DF;
+    --brand:#B23A48; --brand-dark:#8E2C38; --brand-tint:#F6E3E4;
+    --ok:#2F8F5B; --warn:#C9971F; --danger:#B23A48;
+    --tier-S:#C13B3B; --tier-S-tint:#F8E3E3; --tier-M:#C9971F; --tier-M-tint:#FBF0D9; --tier-L:#256D3B; --tier-L-tint:#E1EFE5;
+    --radius:14px; --shadow:0 1px 2px rgba(28,35,51,0.06), 0 4px 14px rgba(28,35,51,0.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; padding-bottom:24px; min-height:100vh;}
+  header.app-head{background:var(--ink); color:#fff; padding:16px 18px 14px; position:sticky; top:0; z-index:20; box-shadow:0 2px 10px rgba(0,0,0,0.15);}
+  header.app-head::after{content:""; display:block; height:6px; margin:14px -18px -14px; background:repeating-linear-gradient(-45deg, var(--tier-S) 0 12px, #fff 12px 24px, var(--tier-L) 24px 36px, #fff 36px 48px);}
+  header.app-head .title-row{display:flex; align-items:center; gap:10px;}
+  header.app-head .tag-icon{width:26px;height:26px;border-radius:50%; background:var(--brand); position:relative; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:15px;}
+  header.app-head h1{font-size:17px; margin:0; font-weight:700;}
+  header.app-head .sub{font-size:12px; color:#C8CDD8; margin-top:2px;}
+  header.app-head .sync{margin-left:auto; font-size:11px; color:#C8CDD8; text-align:right; line-height:1.3; cursor:pointer;}
+  header.app-head .sync .dot{display:inline-block; width:7px;height:7px;border-radius:50%; background:var(--ok); margin-right:4px;}
+  header.app-head .sync .dot.bad{background:var(--danger);}
+  header.app-head{overflow:hidden;}
+  header.app-head .flake{position:absolute; color:rgba(255,255,255,0.4); font-size:13px; animation:twinkle 3.5s ease-in-out infinite; pointer-events:none;}
+  @keyframes twinkle{ 0%,100%{opacity:0.15;} 50%{opacity:0.8;} }
+  main{padding:14px; max-width:640px; margin:0 auto;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px; box-shadow:var(--shadow);}
+  .card h2{margin:0 0 12px; font-size:15px; font-weight:700;}
+  .card h2 .muted{font-weight:500; color:var(--ink-soft); font-size:12px;}
+  label.field{display:block; margin-bottom:12px;}
+  label.field .lab{display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:5px; text-transform:uppercase; letter-spacing:0.4px;}
+  input[type=text], input[type=number]{width:100%; padding:11px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:16px; background:#fff; color:var(--ink); font-family:inherit;}
+  input:focus{outline:none; border-color:var(--brand);}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:12px 16px; border-radius:10px; border:none; font-size:15px; font-weight:700; cursor:pointer; width:100%;}
+  .btn-primary{background:var(--brand); color:#fff;}
+  .btn-primary:active{background:var(--brand-dark);}
+  .btn-secondary{background:#fff; color:var(--ink); border:1.5px solid var(--line);}
+  .btn-ghost{background:transparent; color:var(--brand); font-weight:700;}
+  .btn-sm{width:auto; padding:8px 12px; font-size:13px;}
+  .btn-row{display:flex; gap:10px;}
+  .pill{display:inline-flex; align-items:center; font-size:11px; font-weight:800; padding:3px 9px; border-radius:100px;}
+  .pill-S{background:var(--tier-S-tint); color:var(--tier-S);}
+  .pill-M{background:var(--tier-M-tint); color:var(--tier-M);}
+  .pill-L{background:var(--tier-L-tint); color:var(--tier-L);}
+  .item-row{display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid var(--line);}
+  .item-row:last-child{border-bottom:none;}
+  .item-row .info{flex:1; min-width:0;}
+  .item-row .desc{font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .item-row .meta{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+  .modal-backdrop{position:fixed; inset:0; background:rgba(15,18,26,0.72); z-index:100; display:flex; align-items:flex-end; justify-content:center;}
+  .modal-backdrop.center{align-items:center; padding:16px;}
+  .modal{background:#fff; width:100%; max-width:640px; border-radius:18px 18px 0 0; padding:18px; max-height:92vh; overflow-y:auto;}
+  .modal-backdrop.center .modal{border-radius:16px;}
+  .modal .modal-head{display:flex; align-items:center; margin-bottom:14px;}
+  .modal .modal-head h3{margin:0; font-size:16px; flex:1;}
+  .modal .close-x{background:none; border:none; font-size:22px; color:var(--ink-soft); cursor:pointer; padding:4px;}
+  #scanner-video{width:100%; border-radius:12px; background:#000; max-height:52vh; object-fit:cover;}
+  #scanner-container{height:52vh; max-height:420px;}
+  #scanner-container video, #scanner-container canvas{position:absolute !important; top:0; left:0; width:100% !important; height:100% !important; object-fit:cover;}
+  .scan-mode-toggle{display:flex; gap:8px; margin:10px 0;}
+  .scan-mode-toggle button{flex:1; padding:9px; border-radius:9px; border:1.5px solid var(--line); background:#fff; font-weight:700; font-size:13px;}
+  .scan-mode-toggle button.active{background:var(--ink); color:#fff; border-color:var(--ink);}
+  .scan-status{text-align:center; font-size:13px; color:var(--ink-soft); margin:8px 0;}
+  .banner{padding:11px 13px; border-radius:10px; font-size:13px; font-weight:600; margin-bottom:12px;}
+  .banner-warn{background:#FBEEDA; color:#8A5A11;}
+  .banner-ok{background:#E1F1EC; color:#1E6B4B;}
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}
+  .stat-box{background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; text-align:center;}
+  .stat-box .num{font-size:24px; font-weight:800;}
+  .stat-box .lab{font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.4px; margin-top:2px;}
+  .empty-state{text-align:center; padding:34px 14px; color:var(--ink-soft);}
+  .empty-state .big{font-size:34px; margin-bottom:8px;}
+  .setup-screen{max-width:480px; margin:60px auto; padding:0 18px;}
+  .setup-screen .card{text-align:left;}
+  .setup-screen ol{padding-left:20px; font-size:14px; line-height:1.7; color:var(--ink-soft);}
+  .status-line{font-size:12px; margin-top:8px;}
+  .status-ok{color:var(--ok);}
+  .status-bad{color:var(--danger);}
+</style>
+</head>
+<body>
+
+<div id="app-root"></div>
+<div id="modal-root"></div>
+
+<script>
+/* =========================================================
+   API CONFIG — shared with the main app via the same origin's localStorage
+   ========================================================= */
+const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzAz0ZlwSJA7t_s14tmco4PpyEKxAuYe8jkQKORTBaHMwIKvilhNXSzmFXNJFZz5O8M/exec';
+let API_URL = localStorage.getItem('toydrive_api_url') || DEFAULT_API_URL;
+let volunteerName = localStorage.getItem('toydrive_volunteer_name') || '';
+
+let state = { departments:[], tiers:[], defaultAllowance:{}, inventory:[], families:[], children:[], log:[], boxes:[] };
+
+function tierColor(code){ return {S:'var(--tier-S)',M:'var(--tier-M)',L:'var(--tier-L)'}[code] || '#888'; }
+function tierName(code){ const t=state.tiers.find(t=>t.code===code); return t?t.name:code; }
+function tierAbbrev(code){ const n = tierName(code); return n ? n.trim().slice(0,2) : code; }
+function deptName(code){ const d=state.departments.find(d=>d.code===code); return d?d.name:code; }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function fmtTime(iso){ try{ return new Date(iso).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }catch(e){ return iso||''; } }
+
+/* =========================================================
+   API LAYER
+   ========================================================= */
+async function api(action, payload){
+  if(!API_URL){ throw new Error('Not connected yet.'); }
+  const url = API_URL + '?action=' + encodeURIComponent(action) + (payload ? '&payload=' + encodeURIComponent(JSON.stringify(payload)) : '');
+  const res = await fetch(url);
+  const json = await res.json();
+  if(!json.ok) throw new Error(json.error || 'Unknown error');
+  return json.data;
+}
+function setSync(status){
+  const el = document.getElementById('sync-indicator');
+  if(!el) return;
+  if(status==='ok') el.innerHTML = '<span class="dot"></span>Synced';
+  else if(status==='syncing') el.innerHTML = '<span class="dot"></span>Syncing…';
+  else el.innerHTML = '<span class="dot bad"></span>Sync error — tap to retry';
+}
+let pollTimer = null;
+async function refreshAll(silent){
+  if(!silent) setSync('syncing');
+  try{
+    const data = await api('getAll');
+    state = data;
+    setSync('ok');
+    render();
+  }catch(e){
+    console.error(e);
+    setSync('bad');
+  }
+}
+
+/* =========================================================
+   SETUP SCREEN
+   ========================================================= */
+function renderSetupScreen(prefillError){
+  document.getElementById('app-root').innerHTML = `
+  <div class="setup-screen">
+    <div class="card">
+      <h2>Connect to your Google Sheet</h2>
+      <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">Paste the same Apps Script Web App URL used for the main Toy Drive app.</p>
+      ${prefillError ? `<div class="banner banner-warn">${prefillError}</div>` : ''}
+      <label class="field"><span class="lab">Web app URL</span>
+        <input type="text" id="setup-url" placeholder="https://script.google.com/macros/s/.../exec" value="${API_URL}">
+      </label>
+      <button class="btn btn-primary" id="setup-connect">Connect</button>
+      <div class="status-line" id="setup-status"></div>
+    </div>
+  </div>`;
+  document.getElementById('setup-connect').addEventListener('click', async ()=>{
+    const url = document.getElementById('setup-url').value.trim();
+    const statusEl = document.getElementById('setup-status');
+    if(!url){ statusEl.textContent = 'Paste a URL first.'; statusEl.className='status-line status-bad'; return; }
+    statusEl.textContent = 'Connecting…'; statusEl.className='status-line';
+    API_URL = url;
+    try{
+      const test = await api('ping');
+      localStorage.setItem('toydrive_api_url', url);
+      statusEl.textContent = 'Connected to "'+test.sheet+'". Loading…';
+      statusEl.className='status-line status-ok';
+      setTimeout(initApp, 400);
+    }catch(e){
+      statusEl.textContent = 'Could not connect: ' + e.message;
+      statusEl.className='status-line status-bad';
+    }
+  });
+}
+
+/* =========================================================
+   SHELL — no bottom nav, this page only does Checkout
+   ========================================================= */
+function renderShell(){
+  document.getElementById('app-root').innerHTML = `
+  <header class="app-head">
+    ${generateFlakeSpans()}
+    <div class="title-row">
+      <div class="tag-icon">🎄</div>
+      <div><h1>Shopper Checkout</h1><div class="sub">Let's find some joy for this family</div></div>
+      <div class="sync" id="sync-indicator"><span class="dot"></span>Synced</div>
+    </div>
+  </header>
+  <main id="main"></main>`;
+  document.getElementById('sync-indicator').addEventListener('click', ()=>refreshAll(false));
+}
+function generateFlakeSpans(){
+  const chars = ['❄','✦','❅'];
+  let html = '';
+  for(let i=0; i<7; i++){
+    const left = Math.round(Math.random()*94)+2;
+    const top = Math.round(Math.random()*70)+5;
+    const delay = (Math.random()*3.5).toFixed(1);
+    const size = 10 + Math.round(Math.random()*8);
+    const ch = chars[i % chars.length];
+    html += `<span class="flake" style="left:${left}%; top:${top}%; font-size:${size}px; animation-delay:${delay}s;">${ch}</span>`;
+  }
+  return html;
+}
+
+/* =========================================================
+   MODALS
+   ========================================================= */
+function openModal(html, {center=false}={}){
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `<div class="modal-backdrop ${center?'center':''}" id="active-modal-backdrop"><div class="modal">${html}</div></div>`;
+  root.querySelector('.modal-backdrop').addEventListener('click', (e)=>{ if(e.target.id==='active-modal-backdrop') closeModal(); });
+}
+function closeModal(){ document.getElementById('modal-root').innerHTML = ''; stopAllScanners(); }
+
+function ensureVolunteerName(cb){
+  if(volunteerName){ cb(); return; }
+  openModal(`
+    <div class="modal-head"><h3>Who's shopping?</h3></div>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:-6px;">Just for the checkout log on this device.</p>
+    <label class="field"><span class="lab">Your name</span><input type="text" id="vol-name-input" placeholder="e.g. Sam"></label>
+    <button class="btn btn-primary" id="vol-name-save">Continue</button>
+  `, {center:true});
+  document.getElementById('vol-name-save').addEventListener('click', ()=>{
+    const v = document.getElementById('vol-name-input').value.trim();
+    volunteerName = v || 'Volunteer';
+    localStorage.setItem('toydrive_volunteer_name', volunteerName);
+    closeModal(); cb();
+  });
+}
+
+/* =========================================================
+   SCANNING (same engine as the main app)
+   ========================================================= */
+let scanMode = 'barcode';
+let cameraStream = null, scanRAF = null, scanResultCallback = null, lastBarcodeAttempt = 0, scannerContinuous = false;
+
+function openScanner(onResult, opts={}){
+  scanResultCallback = onResult;
+  scannerContinuous = !!opts.continuous;
+  const title = opts.title || 'Scan';
+  const defaultMode = opts.defaultMode || 'qr';
+  openModal(`
+    <div class="modal-head"><h3>${title}</h3><button class="close-x" id="scan-close">&times;</button></div>
+    <div class="scan-mode-toggle">
+      <button id="mode-barcode">📦 Barcode (UPC)</button>
+      <button id="mode-qr">▣ QR code</button>
+    </div>
+    <div id="scanner-container" style="position:relative; width:100%; height:52vh; max-height:420px; background:#000; border-radius:12px; overflow:hidden;">
+      <video id="scanner-video" autoplay playsinline muted style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover;"></video>
+      <canvas id="scanner-canvas" style="display:none;"></canvas>
+    </div>
+    <div class="scan-status" id="scan-status">Starting camera…</div>
+  `);
+  document.getElementById('scan-close').addEventListener('click', closeModal);
+  document.getElementById('mode-barcode').addEventListener('click', ()=>switchScanMode('barcode'));
+  document.getElementById('mode-qr').addEventListener('click', ()=>switchScanMode('qr'));
+  scanMode = defaultMode;
+  document.getElementById('mode-barcode').classList.toggle('active', scanMode==='barcode');
+  document.getElementById('mode-qr').classList.toggle('active', scanMode==='qr');
+  if(scanMode==='barcode') startBarcodeScanner(); else startQrScanner();
+}
+function switchScanMode(mode){
+  if(mode===scanMode) return;
+  stopAllScanners(); scanMode = mode;
+  document.getElementById('mode-barcode').classList.toggle('active', mode==='barcode');
+  document.getElementById('mode-qr').classList.toggle('active', mode==='qr');
+  if(mode==='barcode') startBarcodeScanner(); else startQrScanner();
+}
+function stopAllScanners(){
+  if(scanRAF) cancelAnimationFrame(scanRAF); scanRAF = null;
+  if(cameraStream){ cameraStream.getTracks().forEach(t=>t.stop()); cameraStream = null; }
+}
+function startCamera(onFrame){
+  const video = document.getElementById('scanner-video');
+  const canvas = document.getElementById('scanner-canvas');
+  const ctx = canvas.getContext('2d', {willReadFrequently:true});
+  const statusEl = document.getElementById('scan-status');
+  navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:640}, height:{ideal:480} } })
+    .then(stream=>{
+      cameraStream = stream;
+      video.srcObject = stream;
+      video.muted = true;
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('muted', 'true');
+      const playPromise = video.play();
+      if(playPromise && playPromise.catch) playPromise.catch(()=>{});
+      const tick = ()=>{
+        if(video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth){
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          onFrame(canvas, ctx);
+        }
+        scanRAF = requestAnimationFrame(tick);
+      };
+      scanRAF = requestAnimationFrame(tick);
+    })
+    .catch(e=>{ console.error(e); if(statusEl) statusEl.textContent = 'Camera permission denied.'; });
+}
+function startBarcodeScanner(){
+  const statusEl = document.getElementById('scan-status');
+  if(typeof Quagga === 'undefined'){ if(statusEl) statusEl.textContent = 'Barcode scanner failed to load.'; return; }
+  if(statusEl) statusEl.textContent = 'Point the camera at the barcode…';
+  startCamera((canvas)=>{
+    const now = Date.now();
+    if(now - lastBarcodeAttempt < 300) return;
+    lastBarcodeAttempt = now;
+    try{
+      Quagga.decodeSingle({
+        src: canvas.toDataURL('image/jpeg', 0.75),
+        numOfWorkers: 0,
+        inputStream: { size: canvas.width },
+        decoder: { readers:['upc_reader','upc_e_reader','ean_reader','ean_8_reader','code_128_reader'] },
+        locate: true
+      }, function(result){
+        if(result && result.codeResult && result.codeResult.code){
+          const code = result.codeResult.code;
+          beep(); vibrate();
+          if(scannerContinuous){ if(scanResultCallback) scanResultCallback(code, 'barcode'); }
+          else { const cb = scanResultCallback; closeModal(); if(cb) cb(code, 'barcode'); }
+        }
+      });
+    }catch(e){ console.error(e); }
+  });
+}
+function startQrScanner(){
+  const statusEl = document.getElementById('scan-status');
+  if(typeof jsQR === 'undefined'){ if(statusEl) statusEl.textContent = 'QR scanner failed to load.'; return; }
+  if(statusEl) statusEl.textContent = 'Point the camera at the QR code…';
+  startCamera((canvas, ctx)=>{
+    const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const result = jsQR(imgData.data, imgData.width, imgData.height);
+    if(result && result.data){
+      beep(); vibrate();
+      if(scannerContinuous){ if(scanResultCallback) scanResultCallback(result.data, 'qr'); }
+      else { const cb = scanResultCallback; closeModal(); if(cb) cb(result.data, 'qr'); }
+    }
+  });
+}
+function beep(){ try{ const ctxA = new (window.AudioContext||window.webkitAudioContext)(); const o=ctxA.createOscillator(),g=ctxA.createGain(); o.type='sine'; o.frequency.value=880; o.connect(g); g.connect(ctxA.destination); g.gain.setValueAtTime(0.15, ctxA.currentTime); o.start(); o.stop(ctxA.currentTime+0.09); }catch(e){} }
+function vibrate(){ try{ navigator.vibrate && navigator.vibrate(60); }catch(e){} }
+
+/* =========================================================
+   CHECKOUT — the only screen this page has
+   ========================================================= */
+let activeFamilyId = null;
+let activeChildId = null;
+function getFamily(id){ const q=String(id||'').trim().toLowerCase(); return state.families.find(f=>f.id.toLowerCase()===q); }
+function getChild(id){ return state.children.find(c=>c.id===id); }
+function childrenOf(familyId){ return state.children.filter(c=>c.familyId===familyId); }
+
+function render(){
+  const main = document.getElementById('main');
+  if(!main) return;
+  main.innerHTML = renderCheckout();
+  attachCheckoutHandlers();
+}
+
+function renderCheckout(){
+  const fam = activeFamilyId ? getFamily(activeFamilyId) : null;
+  return `
+  <div class="card"><h2>Family</h2>
+    <div style="position:relative;">
+      <div class="btn-row"><input type="text" id="family-id-input" placeholder="Search family ID or note…" value="${activeFamilyId||''}" autocomplete="off"><button class="btn btn-secondary btn-sm" id="family-lookup-btn">Go</button></div>
+      <div id="family-suggestions" style="position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); z-index:10; max-height:240px; overflow-y:auto; display:none;"></div>
+    </div>
+  </div>
+  ${fam ? renderFamilyChildren(fam) : `<div class="empty-state"><div class="big">🎄</div>Search for a family above to begin shopping.</div>`}`;
+}
+function renderFamilyChildren(fam){
+  const kids = childrenOf(fam.id);
+  const child = activeChildId ? getChild(activeChildId) : null;
+  return `
+  <div class="card">
+    <h2>${fam.id} <span class="muted">${fam.note?('· '+fam.note):''}</span></h2>
+    ${kids.length===0 ? `<div class="empty-state" style="padding:14px;">No kids on file for this family yet.</div>` :
+      kids.map(k=>{
+        const remS = (k.allowed.S||0)-(k.scanned.S||0), remM = (k.allowed.M||0)-(k.scanned.M||0), remL = (k.allowed.L||0)-(k.scanned.L||0);
+        const allOut = remS<=0 && remM<=0 && remL<=0;
+        return `<div class="item-row" data-child="${k.id}" style="cursor:pointer; ${child&&child.id===k.id?'background:var(--brand-tint); margin:0 -16px; padding:11px 16px; border-radius:8px;':''}">
+          <div class="info">
+            <div class="desc">${k.name || '(unnamed)'} ${k.age!==''?('· age '+k.age):''}${k.gender?(' · '+k.gender):''}</div>
+            <div class="meta">
+              <span class="pill pill-S" style="margin-right:4px;">S:${remS}</span>
+              <span class="pill pill-M" style="margin-right:4px;">M:${remM}</span>
+              <span class="pill pill-L">L:${remL}</span>
+              ${allOut?' · all done 🎁':''}
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+  </div>
+  ${child ? renderActiveChild(fam, child) : (kids.length ? `<div class="card"><div class="empty-state" style="padding:14px;">Tap a child above to start scanning for them.</div></div>` : '')}
+  <div class="card"><button class="btn btn-secondary" id="finish-family-btn">Mark family complete</button></div>`;
+}
+function renderActiveChild(fam, child){
+  const tiers = state.tiers;
+  const remaining = t=> (child.allowed[t]||0) - (child.scanned[t]||0);
+  const allOut = tiers.every(t=>remaining(t.code)<=0);
+  const childLog = state.log.filter(l=>l.childId===child.id);
+  return `
+  <div class="card">
+    <h2>Shopping for ${child.name||'this child'}</h2>
+    <div class="stat-grid" style="margin-bottom:12px;">
+      ${tiers.map(t=>`<div class="stat-box" style="border-color:${remaining(t.code)<=0?'var(--danger)':'var(--line)'}"><div class="num" style="color:${tierColor(t.code)}">${remaining(t.code)}</div><div class="lab">${t.name} left</div></div>`).join('')}
+    </div>
+    ${allOut ? `<div class="banner banner-ok">All allowances used for ${child.name||'this child'}. 🎁</div>` : ''}
+    <button class="btn btn-primary" id="checkout-scan-btn">▣ Scan a toy to give</button>
+  </div>
+  <div class="card">
+    <h2>Given to ${child.name||'this child'} <span class="muted">${childLog.length} item${childLog.length===1?'':'s'}</span></h2>
+    ${childLog.length===0 ? `<div class="empty-state" style="padding:14px;">Nothing scanned yet.</div>` :
+      childLog.slice().reverse().map(l=>`
+        <div class="item-row">
+          <span class="pill pill-${l.tier}">${tierAbbrev(l.tier)}</span>
+          <div class="info"><div class="desc">${l.description}</div><div class="meta">${deptName(l.dept)} · ${fmtTime(l.timestamp)}${l.note?(' · '+l.note):''}</div></div>
+          <button class="btn btn-secondary btn-sm" data-undo-child="${l.childId}" data-undo-code="${l.code}" data-undo-time="${l.timestamp}">Undo</button>
+        </div>`).join('')}
+  </div>`;
+}
+function attachCheckoutHandlers(){
+  const idInput = document.getElementById('family-id-input');
+  const lookupBtn = document.getElementById('family-lookup-btn');
+  if(lookupBtn) lookupBtn.addEventListener('click', ()=>{ hideFamilySuggestions(); lookupOrPromptFamily(idInput.value.trim()); });
+  if(idInput) idInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ hideFamilySuggestions(); lookupOrPromptFamily(idInput.value.trim()); } });
+  if(idInput) idInput.addEventListener('input', e=>renderFamilySuggestions(e.target.value));
+  if(idInput) idInput.addEventListener('focus', e=>{ if(e.target.value.trim()) renderFamilySuggestions(e.target.value); });
+  if(idInput) idInput.addEventListener('blur', ()=>{ setTimeout(hideFamilySuggestions, 150); });
+  document.querySelectorAll('[data-child]').forEach(row=>row.addEventListener('click', ()=>{
+    activeChildId = row.dataset.child; render();
+  }));
+  const scanBtn = document.getElementById('checkout-scan-btn'); if(scanBtn) scanBtn.addEventListener('click', handleCheckoutScanClick);
+  const finishBtn = document.getElementById('finish-family-btn');
+  if(finishBtn) finishBtn.addEventListener('click', async ()=>{ await api('completeFamily', {id: activeFamilyId}); activeFamilyId = null; activeChildId = null; await refreshAll(true); render(); });
+  document.querySelectorAll('[data-undo-child]').forEach(b=>b.addEventListener('click', ()=>undoCheckoutEntry(b.dataset.undoChild, b.dataset.undoCode, b.dataset.undoTime)));
+}
+function renderFamilySuggestions(query){
+  const box = document.getElementById('family-suggestions');
+  if(!box) return;
+  const q = String(query||'').trim().toLowerCase();
+  if(!q){ hideFamilySuggestions(); return; }
+  const matches = state.families.filter(f => f.id.toLowerCase().includes(q) || (f.note||'').toLowerCase().includes(q)).slice(0,8);
+  if(matches.length===0){ hideFamilySuggestions(); return; }
+  box.innerHTML = matches.map(f=>`
+    <div data-fam-suggestion="${f.id}" style="padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--line);">
+      <div style="font-weight:700; font-size:14px;">${f.id}</div>
+      ${f.note?`<div style="font-size:12px; color:var(--ink-soft);">${f.note}</div>`:''}
+    </div>`).join('');
+  box.querySelectorAll('[data-fam-suggestion]').forEach(item=>{
+    item.addEventListener('mousedown', (e)=>{
+      e.preventDefault();
+      const id = item.dataset.famSuggestion;
+      document.getElementById('family-id-input').value = id;
+      hideFamilySuggestions();
+      lookupOrPromptFamily(id);
+    });
+  });
+  box.style.display = 'block';
+}
+function hideFamilySuggestions(){
+  const box = document.getElementById('family-suggestions');
+  if(box){ box.style.display = 'none'; box.innerHTML = ''; }
+}
+function handleCheckoutScanClick(){
+  ensureVolunteerName(()=>{
+    if(!activeFamilyId){ alert('Enter or create a family first.'); return; }
+    if(!activeChildId){ alert("Pick which child you're shopping for first."); return; }
+    openScanner(processCheckoutCode, {title:'Scan a toy'});
+  });
+}
+function lookupOrPromptFamily(id){
+  if(!id) return;
+  const fam = getFamily(id);
+  activeChildId = null;
+  if(fam){ activeFamilyId = fam.id; render(); return; }
+  openModal(`
+    <div class="modal-head"><h3>Family not found</h3><button class="close-x" id="scan-close">&times;</button></div>
+    <div class="banner banner-warn">No family matches "<b>${id}</b>." Double-check the spelling, or ask an admin to add this family.</div>
+  `, {center:true});
+  document.getElementById('scan-close').addEventListener('click', closeModal);
+}
+async function processCheckoutCode(code){
+  const child = getChild(activeChildId);
+  if(!child) return;
+  try{
+    const result = await api('checkoutScan', { childId: child.id, code, volunteer: volunteerName, override:false });
+    if(result.notFound){
+      openModal(`
+        <div class="modal-head"><h3>Not found</h3><button class="close-x" id="scan-close">&times;</button></div>
+        <div class="banner banner-warn">No inventory item matches code <b>${code}</b>.</div>
+        <button class="btn btn-secondary" id="retry-scan">Try again</button>
+      `, {center:true});
+      document.getElementById('scan-close').addEventListener('click', closeModal);
+      document.getElementById('retry-scan').addEventListener('click', ()=>openScanner(processCheckoutCode, {title:'Scan a toy'}));
+      return;
+    }
+    if(result.blocked){
+      const reason = result.reason==='out_of_stock' ? 'This toy shows 0 available in inventory.' : `${child.name||'This child'}'s allowance for that size is already used.`;
+      openModal(`
+        <div class="modal-head"><h3>Heads up</h3><button class="close-x" id="scan-close">&times;</button></div>
+        <div class="banner banner-warn">${reason}</div>
+        <div class="btn-row" style="margin-top:10px;"><button class="btn btn-secondary" id="co-cancel">Cancel</button><button class="btn btn-primary" id="co-override">Give anyway</button></div>
+      `, {center:true});
+      document.getElementById('scan-close').addEventListener('click', closeModal);
+      document.getElementById('co-cancel').addEventListener('click', closeModal);
+      document.getElementById('co-override').addEventListener('click', async ()=>{
+        closeModal();
+        try{ await api('checkoutScan', { childId: child.id, code, volunteer: volunteerName, override:true }); beep(); vibrate(); await refreshAll(true); render(); }
+        catch(e){ alert('Could not check out: ' + e.message); }
+      });
+      return;
+    }
+    beep(); vibrate();
+    await refreshAll(true);
+    render();
+  }catch(e){ alert('Scan failed: ' + e.message); }
+}
+async function undoCheckoutEntry(childId, code, timestamp){
+  try{ await api('undoCheckout', {childId, code, timestamp}); await refreshAll(true); render(); }
+  catch(e){ alert('Could not undo: ' + e.message); }
+}
+
+/* =========================================================
+   INIT
+   ========================================================= */
+async function initApp(){
+  renderShell();
+  await refreshAll(false);
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(()=>{
+    const active = document.activeElement;
+    const isTyping = active && (active.tagName==='INPUT' || active.tagName==='TEXTAREA');
+    if(document.getElementById('modal-root').children.length===0 && !isTyping) refreshAll(true);
+  }, 6000);
+}
+
+(async function boot(){
+  if(!API_URL){ renderSetupScreen(); return; }
+  try{
+    await api('ping');
+    initApp();
+  }catch(e){
+    renderSetupScreen('Saved connection failed: ' + e.message);
+  }
+})();
+</script>
+</body>
+</html>
