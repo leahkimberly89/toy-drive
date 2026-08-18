@@ -932,9 +932,11 @@ function openEditItemModal(code){
    ========================================================= */
 let labelCopyCounts = null;
 function ensureLabelCopyCounts(){
-  if(labelCopyCounts) return;
-  labelCopyCounts = {};
-  state.departments.forEach(d=>{ state.tiers.forEach(t=>{ labelCopyCounts[d.code+'-'+t.code] = 12; }); });
+  if(!labelCopyCounts) labelCopyCounts = {};
+  state.departments.forEach(d=>{ state.tiers.forEach(t=>{
+    const key = d.code+'-'+t.code;
+    if(labelCopyCounts[key]==null) labelCopyCounts[key] = 12;
+  }); });
 }
 function renderLabels(){
   ensureLabelCopyCounts();
@@ -942,7 +944,7 @@ function renderLabels(){
   return `
   <div class="card">
     <h2>Print toy stickers</h2>
-    <p style="font-size:13px;color:var(--ink-soft);margin-top:-4px;">One QR sticker per department/size combo — print a stack of each, then volunteers stick the matching one on each toy as they sort it (covering the original barcode). Sized for a standard 3-across label sheet (e.g. Avery 5160).</p>
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:-4px;">One QR sticker per department/size combo — print a stack of each, then volunteers stick the matching one on each toy as they sort it (covering the original barcode). Sized for a standard 2-across label sheet (e.g. Avery 5163, 2"×4").</p>
     <div class="btn-row" style="margin-bottom:6px;">
       <input type="number" id="bulk-copy-count" value="12" min="0" placeholder="Copies">
       <button class="btn btn-secondary btn-sm" id="apply-bulk-copies">Set all to this</button>
