@@ -536,9 +536,9 @@ function stickerSheetDoc(stickersHtml){
     *{box-sizing:border-box;}
     body{margin:0; font-family:Arial,Helvetica,sans-serif;}
     .sticker-sheet{display:grid; grid-template-columns:repeat(2, 4in); grid-auto-rows:2in; column-gap:0.188in; row-gap:0;}
-    .sticker{border:1px solid #ddd; display:flex; align-items:center; gap:0.18in; padding:0.15in 0.25in; overflow:hidden; position:relative;}
+    .sticker{border:1px solid #ddd; display:flex; align-items:center; justify-content:center; gap:0.18in; padding:0.15in 0.25in; overflow:hidden; position:relative;}
     .tier-dot{width:0.45in; height:0.45in; border-radius:50%; flex-shrink:0;}
-    .sticker-text{flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;}
+    .sticker-text{min-width:0; display:flex; flex-direction:column; gap:4px;}
     .sticker-tier{font-size:24px; font-weight:800; text-transform:uppercase; letter-spacing:0.4px; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
     .sticker-dept{font-size:18px; font-weight:700; color:#222; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
     .qr{width:1in; height:1in; flex-shrink:0;}
