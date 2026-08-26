@@ -12,7 +12,7 @@
     --ink:#1C2333; --ink-soft:#4A5568; --bg:#F2F4F3; --card:#FFFFFF; --line:#DCE1DF;
     --brand:#B23A48; --brand-dark:#8E2C38; --brand-tint:#F6E3E4;
     --ok:#2F8F5B; --warn:#C98A1F; --danger:#B23A48;
-    --tier-S:#C13B3B; --tier-S-tint:#F8E3E3; --tier-M:#C9971F; --tier-M-tint:#FBF0D9; --tier-L:#256D3B; --tier-L-tint:#E1EFE5;
+    --tier-S:#C13B3B; --tier-S-tint:#F8E3E3; --tier-M:#1F5FAE; --tier-M-tint:#E2EAF6; --tier-L:#256D3B; --tier-L-tint:#E1EFE5;
     --radius:14px; --shadow:0 1px 2px rgba(28,35,51,0.06), 0 4px 14px rgba(28,35,51,0.06);
   }
   *{box-sizing:border-box;}
@@ -145,7 +145,7 @@ let state = { departments:[], tiers:[], defaultAllowance:{}, inventory:[], famil
 let currentView = 'intake';
 
 function tierColor(code){ return {S:'var(--tier-S)',M:'var(--tier-M)',L:'var(--tier-L)'}[code] || '#888'; }
-function tierColorHex(code){ return {S:'#C13B3B',M:'#C9971F',L:'#256D3B'}[code] || '#555'; }
+function tierColorHex(code){ return {S:'#C13B3B',M:'#1F5FAE',L:'#256D3B'}[code] || '#555'; }
 function tierName(code){ const t=state.tiers.find(t=>t.code===code); return t?t.name:code; }
 function tierAbbrev(code){ const n = tierName(code); return n ? n.trim().slice(0,2) : code; }
 function deptName(code){ const d=state.departments.find(d=>d.code===code); return d?d.name:code; }
@@ -1085,12 +1085,11 @@ function printCategoryStickers(requests){
     const code = req.dept.code + '-' + req.tier.code;
     const single = `
     <div class="sticker">
-      <div class="tier-dot" style="background:${tierColorHex(req.tier.code)}"></div>
       <div class="sticker-text">
         <div class="sticker-tier" style="color:${tierColorHex(req.tier.code)}">${req.tier.name}</div>
-        <div class="sticker-dept">${req.dept.name}</div>
+        <div class="sticker-dept" style="color:${tierColorHex(req.tier.code)}">${req.dept.name}</div>
       </div>
-      <div class="qr" data-qr-text="${code}"></div>
+      <div class="qr" data-qr-text="${code}" data-qr-color="${tierColorHex(req.tier.code)}"></div>
       <div class="code">${code}</div>
     </div>`;
     for(let n=0; n<req.copies; n++) stickersHtml += single;
@@ -1106,12 +1105,11 @@ function printLabelsForCodes(codes){
   if(!printWin){ alert('Your browser blocked the print window as a pop-up. Please allow pop-ups for this site and try again.'); return; }
   const stickersHtml = items.map(item => `
     <div class="sticker">
-      <div class="tier-dot" style="background:${tierColorHex(item.tier)}"></div>
       <div class="sticker-text">
         <div class="sticker-tier" style="color:${tierColorHex(item.tier)}">${tierName(item.tier)}</div>
-        <div class="sticker-dept">${deptName(item.dept)}</div>
+        <div class="sticker-dept" style="color:${tierColorHex(item.tier)}">${deptName(item.dept)}</div>
       </div>
-      <div class="qr" data-qr-text="${item.code}"></div>
+      <div class="qr" data-qr-text="${item.code}" data-qr-color="${tierColorHex(item.tier)}"></div>
       <div class="code">${item.code}</div>
     </div>`).join('');
   printWin.document.open();
@@ -1123,12 +1121,11 @@ function stickerSheetDoc(stickersHtml){
     *{box-sizing:border-box;}
     body{margin:0; font-family:Arial,Helvetica,sans-serif;}
     .sticker-sheet{display:grid; grid-template-columns:repeat(3, 2.625in); grid-auto-rows:1in; column-gap:0.125in; row-gap:0;}
-    .sticker{border:1px solid #ddd; display:flex; align-items:center; justify-content:center; gap:0.08in; padding:0.05in 0.09in; overflow:hidden; position:relative;}
-    .tier-dot{width:0.2in; height:0.2in; border-radius:50%; flex-shrink:0;}
-    .sticker-text{min-width:0; display:flex; flex-direction:column; gap:2px;}
-    .sticker-tier{font-size:14px; font-weight:800; text-transform:uppercase; letter-spacing:0.3px; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-    .sticker-dept{font-size:12px; font-weight:700; color:#222; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-    .qr{width:0.48in; height:0.48in; flex-shrink:0;}
+    .sticker{border:1px solid #ddd; display:flex; align-items:center; justify-content:center; gap:0.12in; padding:0.05in 0.08in; overflow:hidden; position:relative;}
+    .sticker-text{min-width:0; display:flex; flex-direction:column; gap:1px;}
+    .sticker-tier{font-size:22px; font-weight:800; text-transform:uppercase; letter-spacing:0.3px; line-height:1.05; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .sticker-dept{font-size:16px; font-weight:800; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .qr{width:0.62in; height:0.62in; flex-shrink:0;}
     .code{font-size:6px; color:#aaa; font-family:monospace; position:absolute; bottom:2px; right:6px;}
     @page{ size:letter; margin:0.5in 0.1875in; }
   </style></head><body>
@@ -1137,7 +1134,7 @@ function stickerSheetDoc(stickersHtml){
     <script>
       window.addEventListener('load', function(){
         document.querySelectorAll('[data-qr-text]').forEach(function(el){
-          try{ new QRCode(el, {text: el.getAttribute('data-qr-text'), width:52, height:52, correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+          try{ new QRCode(el, {text: el.getAttribute('data-qr-text'), width:62, height:62, colorDark: el.getAttribute('data-qr-color')||'#000000', colorLight:'#ffffff', correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
         });
         setTimeout(function(){ window.print(); }, 350);
       });
