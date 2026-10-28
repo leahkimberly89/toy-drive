@@ -161,10 +161,20 @@ function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(
 async function api(action, payload){
   if(!API_URL){ throw new Error('Not connected yet.'); }
   const url = API_URL + '?action=' + encodeURIComponent(action) + (payload ? '&payload=' + encodeURIComponent(JSON.stringify(payload)) : '');
-  const res = await fetch(url);
-  const json = await res.json();
-  if(!json.ok) throw new Error(json.error || 'Unknown error');
-  return json.data;
+  // Retry when the Google Sheet is busy with another save (lock timeout).
+  // A lock timeout means nothing was written, so retrying can't double-count.
+  const waits = [1500, 3000, 5000];
+  for(let attempt=0; ; attempt++){
+    const res = await fetch(url);
+    const json = await res.json();
+    if(json.ok) return json.data;
+    const msg = json.error || 'Unknown error';
+    if(/lock/i.test(msg) && attempt < waits.length){
+      await new Promise(r=>setTimeout(r, waits[attempt]));
+      continue;
+    }
+    throw new Error(msg);
+  }
 }
 
 function setSync(status){
